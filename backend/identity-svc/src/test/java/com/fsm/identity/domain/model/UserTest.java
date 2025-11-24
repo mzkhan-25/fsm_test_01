@@ -94,7 +94,6 @@ class UserTest {
                 .name("Test User")
                 .email("test@example.com")
                 .password("hashedPassword123")
-                .password("hashedPassword123")
                 .role(technicianRole)
                 .status(User.UserStatus.INACTIVE)
                 .build();
@@ -110,7 +109,6 @@ class UserTest {
         User user = User.builder()
                 .name("Test User")
                 .email("test@example.com")
-                .password("hashedPassword123")
                 .password("hashedPassword123")
                 .role(technicianRole)
                 .status(User.UserStatus.ACTIVE)
@@ -150,7 +148,6 @@ class UserTest {
                 .name("")
                 .email("test@example.com")
                 .password("hashedPassword123")
-                .password("hashedPassword123")
                 .role(technicianRole)
                 .status(User.UserStatus.ACTIVE)
                 .build();
@@ -166,7 +163,6 @@ class UserTest {
         User user = User.builder()
                 .name(null)
                 .email("test@example.com")
-                .password("hashedPassword123")
                 .password("hashedPassword123")
                 .role(technicianRole)
                 .status(User.UserStatus.ACTIVE)
