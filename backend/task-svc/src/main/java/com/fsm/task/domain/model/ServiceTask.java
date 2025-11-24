@@ -35,6 +35,7 @@ public class ServiceTask {
     @Column(nullable = false)
     private String title;
     
+    @Lob
     @Column(columnDefinition = "TEXT")
     private String description;
     

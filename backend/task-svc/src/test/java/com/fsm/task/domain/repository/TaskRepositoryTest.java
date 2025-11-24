@@ -3,11 +3,13 @@ package com.fsm.task.domain.repository;
 import com.fsm.task.domain.model.ServiceTask;
 import com.fsm.task.domain.model.ServiceTask.Priority;
 import com.fsm.task.domain.model.ServiceTask.TaskStatus;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
 import org.springframework.test.context.TestPropertySource;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -15,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.*;
 
 /**
  * Integration tests for TaskRepository with actual database operations.
+ * Tests database persistence, CRUD operations, and query performance with indexes.
  */
 @DataJpaTest
 @TestPropertySource(locations = "classpath:application-test.properties")
@@ -22,6 +25,11 @@ class TaskRepositoryTest {
     
     @Autowired
     private TaskRepository taskRepository;
+    
+    @BeforeEach
+    void setUp() {
+        taskRepository.deleteAll();
+    }
     
     @Test
     void testRepositoryIsInjected() {
@@ -152,6 +160,8 @@ class TaskRepositoryTest {
         assertEquals(TaskStatus.IN_PROGRESS, thirdTask.getStatus());
     }
     
+    // ============== CRUD Operations Tests ==============
+    
     @Test
     void testSaveAndFindTask() {
         ServiceTask task = ServiceTask.builder()
@@ -171,6 +181,30 @@ class TaskRepositoryTest {
         assertEquals("Test Task", saved.getTitle());
         assertEquals("123 Test St", saved.getClientAddress());
         assertEquals(Priority.HIGH, saved.getPriority());
+    }
+    
+    @Test
+    void testFindById() {
+        ServiceTask task = ServiceTask.builder()
+                .title("Find By Id Task")
+                .clientAddress("456 Test Ave")
+                .priority(Priority.MEDIUM)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        ServiceTask saved = taskRepository.save(task);
+        
+        Optional<ServiceTask> found = taskRepository.findById(saved.getId());
+        
+        assertTrue(found.isPresent());
+        assertEquals(saved.getId(), found.get().getId());
+        assertEquals("Find By Id Task", found.get().getTitle());
+    }
+    
+    @Test
+    void testFindByIdNotFound() {
+        Optional<ServiceTask> found = taskRepository.findById(999999L);
+        assertFalse(found.isPresent());
     }
     
     @Test
@@ -195,8 +229,10 @@ class TaskRepositoryTest {
         List<ServiceTask> unassignedTasks = taskRepository.findByStatus(TaskStatus.UNASSIGNED);
         List<ServiceTask> completedTasks = taskRepository.findByStatus(TaskStatus.COMPLETED);
         
-        assertTrue(unassignedTasks.size() >= 1);
-        assertTrue(completedTasks.size() >= 1);
+        assertEquals(1, unassignedTasks.size());
+        assertEquals(1, completedTasks.size());
+        assertTrue(unassignedTasks.stream().allMatch(t -> t.getStatus() == TaskStatus.UNASSIGNED));
+        assertTrue(completedTasks.stream().allMatch(t -> t.getStatus() == TaskStatus.COMPLETED));
     }
     
     @Test
@@ -221,8 +257,8 @@ class TaskRepositoryTest {
         List<ServiceTask> highPriorityTasks = taskRepository.findByPriority(Priority.HIGH);
         List<ServiceTask> lowPriorityTasks = taskRepository.findByPriority(Priority.LOW);
         
-        assertTrue(highPriorityTasks.size() >= 1);
-        assertTrue(lowPriorityTasks.size() >= 1);
+        assertEquals(1, highPriorityTasks.size());
+        assertEquals(1, lowPriorityTasks.size());
         assertTrue(highPriorityTasks.stream().allMatch(t -> t.getPriority() == Priority.HIGH));
         assertTrue(lowPriorityTasks.stream().allMatch(t -> t.getPriority() == Priority.LOW));
     }
@@ -241,7 +277,7 @@ class TaskRepositoryTest {
         
         List<ServiceTask> tasks = taskRepository.findByCreatedBy("admin@example.com");
         
-        assertTrue(tasks.size() >= 1);
+        assertEquals(1, tasks.size());
         assertTrue(tasks.stream().allMatch(t -> t.getCreatedBy().equals("admin@example.com")));
     }
     
@@ -289,6 +325,32 @@ class TaskRepositoryTest {
     }
     
     @Test
+    void testDeleteAllTasks() {
+        ServiceTask task1 = ServiceTask.builder()
+                .title("Task 1")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        ServiceTask task2 = ServiceTask.builder()
+                .title("Task 2")
+                .clientAddress("456 Test Ave")
+                .priority(Priority.LOW)
+                .status(TaskStatus.ASSIGNED)
+                .build();
+        
+        taskRepository.save(task1);
+        taskRepository.save(task2);
+        
+        assertTrue(taskRepository.count() >= 2);
+        
+        taskRepository.deleteAll();
+        
+        assertEquals(0, taskRepository.count());
+    }
+    
+    @Test
     void testTaskLifecycleTransitions() {
         ServiceTask task = ServiceTask.builder()
                 .title("Lifecycle Task")
@@ -324,7 +386,7 @@ class TaskRepositoryTest {
     
     @Test
     void testCount() {
-        long initialCount = taskRepository.count();
+        assertEquals(0, taskRepository.count());
         
         ServiceTask task = ServiceTask.builder()
                 .title("Count Test Task")
@@ -335,8 +397,7 @@ class TaskRepositoryTest {
         
         taskRepository.save(task);
         
-        long newCount = taskRepository.count();
-        assertEquals(initialCount + 1, newCount);
+        assertEquals(1, taskRepository.count());
     }
     
     @Test
@@ -360,7 +421,7 @@ class TaskRepositoryTest {
         
         List<ServiceTask> allTasks = taskRepository.findAll();
         
-        assertTrue(allTasks.size() >= 2);
+        assertEquals(2, allTasks.size());
     }
     
     @Test
@@ -375,5 +436,333 @@ class TaskRepositoryTest {
         ServiceTask saved = taskRepository.save(task);
         
         assertNotNull(saved.getCreatedAt());
+    }
+    
+    // ============== New Query Methods Tests ==============
+    
+    @Test
+    void testFindByStatusAndPriority() {
+        ServiceTask task1 = ServiceTask.builder()
+                .title("High Priority Unassigned")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        ServiceTask task2 = ServiceTask.builder()
+                .title("Low Priority Unassigned")
+                .clientAddress("456 Test Ave")
+                .priority(Priority.LOW)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        ServiceTask task3 = ServiceTask.builder()
+                .title("High Priority Completed")
+                .clientAddress("789 Test Blvd")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.COMPLETED)
+                .build();
+        
+        taskRepository.save(task1);
+        taskRepository.save(task2);
+        taskRepository.save(task3);
+        
+        List<ServiceTask> results = taskRepository.findByStatusAndPriority(TaskStatus.UNASSIGNED, Priority.HIGH);
+        
+        assertEquals(1, results.size());
+        assertEquals("High Priority Unassigned", results.get(0).getTitle());
+        assertEquals(TaskStatus.UNASSIGNED, results.get(0).getStatus());
+        assertEquals(Priority.HIGH, results.get(0).getPriority());
+    }
+    
+    @Test
+    void testFindByCreatedAtAfter() {
+        LocalDateTime yesterday = LocalDateTime.now().minusDays(1);
+        
+        ServiceTask task1 = ServiceTask.builder()
+                .title("Recent Task")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        taskRepository.save(task1);
+        
+        List<ServiceTask> results = taskRepository.findByCreatedAtAfter(yesterday);
+        
+        assertEquals(1, results.size());
+    }
+    
+    @Test
+    void testFindByCreatedAtBefore() {
+        LocalDateTime tomorrow = LocalDateTime.now().plusDays(1);
+        
+        ServiceTask task1 = ServiceTask.builder()
+                .title("Past Task")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        taskRepository.save(task1);
+        
+        List<ServiceTask> results = taskRepository.findByCreatedAtBefore(tomorrow);
+        
+        assertEquals(1, results.size());
+    }
+    
+    @Test
+    void testFindByCreatedAtBetween() {
+        LocalDateTime yesterday = LocalDateTime.now().minusDays(1);
+        LocalDateTime tomorrow = LocalDateTime.now().plusDays(1);
+        
+        ServiceTask task1 = ServiceTask.builder()
+                .title("Task Within Range")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        taskRepository.save(task1);
+        
+        List<ServiceTask> results = taskRepository.findByCreatedAtBetween(yesterday, tomorrow);
+        
+        assertEquals(1, results.size());
+    }
+    
+    @Test
+    void testFindByStatusOrderByPriorityDesc() {
+        ServiceTask task1 = ServiceTask.builder()
+                .title("Low Priority Task")
+                .clientAddress("123 Test St")
+                .priority(Priority.LOW)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        ServiceTask task2 = ServiceTask.builder()
+                .title("High Priority Task")
+                .clientAddress("456 Test Ave")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        ServiceTask task3 = ServiceTask.builder()
+                .title("Medium Priority Task")
+                .clientAddress("789 Test Blvd")
+                .priority(Priority.MEDIUM)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        taskRepository.save(task1);
+        taskRepository.save(task2);
+        taskRepository.save(task3);
+        
+        List<ServiceTask> results = taskRepository.findByStatusOrderByPriorityDesc(TaskStatus.UNASSIGNED);
+        
+        assertEquals(3, results.size());
+        assertEquals(Priority.HIGH, results.get(0).getPriority());
+        assertEquals(Priority.MEDIUM, results.get(1).getPriority());
+        assertEquals(Priority.LOW, results.get(2).getPriority());
+    }
+    
+    @Test
+    void testFindByStatusOrderByCreatedAtDesc() {
+        ServiceTask task1 = ServiceTask.builder()
+                .title("First Task")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        ServiceTask saved1 = taskRepository.save(task1);
+        
+        // Add small delay to ensure different timestamps
+        ServiceTask task2 = ServiceTask.builder()
+                .title("Second Task")
+                .clientAddress("456 Test Ave")
+                .priority(Priority.LOW)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        taskRepository.save(task2);
+        
+        List<ServiceTask> results = taskRepository.findByStatusOrderByCreatedAtDesc(TaskStatus.UNASSIGNED);
+        
+        assertEquals(2, results.size());
+        // Most recent should be first
+        assertTrue(results.get(0).getCreatedAt().compareTo(results.get(1).getCreatedAt()) >= 0);
+    }
+    
+    @Test
+    void testCountByStatus() {
+        ServiceTask task1 = ServiceTask.builder()
+                .title("Unassigned 1")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        ServiceTask task2 = ServiceTask.builder()
+                .title("Unassigned 2")
+                .clientAddress("456 Test Ave")
+                .priority(Priority.LOW)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        ServiceTask task3 = ServiceTask.builder()
+                .title("Completed 1")
+                .clientAddress("789 Test Blvd")
+                .priority(Priority.MEDIUM)
+                .status(TaskStatus.COMPLETED)
+                .build();
+        
+        taskRepository.save(task1);
+        taskRepository.save(task2);
+        taskRepository.save(task3);
+        
+        assertEquals(2, taskRepository.countByStatus(TaskStatus.UNASSIGNED));
+        assertEquals(1, taskRepository.countByStatus(TaskStatus.COMPLETED));
+        assertEquals(0, taskRepository.countByStatus(TaskStatus.IN_PROGRESS));
+    }
+    
+    @Test
+    void testCountByPriority() {
+        ServiceTask task1 = ServiceTask.builder()
+                .title("High 1")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        ServiceTask task2 = ServiceTask.builder()
+                .title("High 2")
+                .clientAddress("456 Test Ave")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        ServiceTask task3 = ServiceTask.builder()
+                .title("Low 1")
+                .clientAddress("789 Test Blvd")
+                .priority(Priority.LOW)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        taskRepository.save(task1);
+        taskRepository.save(task2);
+        taskRepository.save(task3);
+        
+        assertEquals(2, taskRepository.countByPriority(Priority.HIGH));
+        assertEquals(1, taskRepository.countByPriority(Priority.LOW));
+        assertEquals(0, taskRepository.countByPriority(Priority.MEDIUM));
+    }
+    
+    @Test
+    void testFindUrgentUnassignedTasks() {
+        ServiceTask task1 = ServiceTask.builder()
+                .title("High Priority Unassigned 1")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        ServiceTask task2 = ServiceTask.builder()
+                .title("High Priority Unassigned 2")
+                .clientAddress("456 Test Ave")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        ServiceTask task3 = ServiceTask.builder()
+                .title("Low Priority Unassigned")
+                .clientAddress("789 Test Blvd")
+                .priority(Priority.LOW)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        ServiceTask task4 = ServiceTask.builder()
+                .title("High Priority Assigned")
+                .clientAddress("101 Test Ln")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.ASSIGNED)
+                .build();
+        
+        taskRepository.save(task1);
+        taskRepository.save(task2);
+        taskRepository.save(task3);
+        taskRepository.save(task4);
+        
+        List<ServiceTask> urgentTasks = taskRepository.findUrgentUnassignedTasks();
+        
+        assertEquals(2, urgentTasks.size());
+        assertTrue(urgentTasks.stream().allMatch(t -> 
+            t.getStatus() == TaskStatus.UNASSIGNED && t.getPriority() == Priority.HIGH));
+    }
+    
+    @Test
+    void testExistsById() {
+        ServiceTask task = ServiceTask.builder()
+                .title("Exists Test")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        ServiceTask saved = taskRepository.save(task);
+        
+        assertTrue(taskRepository.existsById(saved.getId()));
+        assertFalse(taskRepository.existsById(999999L));
+    }
+    
+    @Test
+    void testSaveAll() {
+        ServiceTask task1 = ServiceTask.builder()
+                .title("Batch Task 1")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        ServiceTask task2 = ServiceTask.builder()
+                .title("Batch Task 2")
+                .clientAddress("456 Test Ave")
+                .priority(Priority.LOW)
+                .status(TaskStatus.ASSIGNED)
+                .build();
+        
+        List<ServiceTask> saved = taskRepository.saveAll(List.of(task1, task2));
+        
+        assertEquals(2, saved.size());
+        assertTrue(saved.stream().allMatch(t -> t.getId() != null));
+    }
+    
+    @Test
+    void testFlush() {
+        ServiceTask task = ServiceTask.builder()
+                .title("Flush Test")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        taskRepository.save(task);
+        taskRepository.flush();
+        
+        assertEquals(1, taskRepository.count());
+    }
+    
+    @Test
+    void testSaveAndFlush() {
+        ServiceTask task = ServiceTask.builder()
+                .title("Save and Flush Test")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        ServiceTask saved = taskRepository.saveAndFlush(task);
+        
+        assertNotNull(saved.getId());
+        assertEquals(1, taskRepository.count());
     }
 }

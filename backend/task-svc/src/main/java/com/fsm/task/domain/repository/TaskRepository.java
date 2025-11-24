@@ -4,6 +4,8 @@ import com.fsm.task.domain.model.ServiceTask;
 import com.fsm.task.domain.model.ServiceTask.Priority;
 import com.fsm.task.domain.model.ServiceTask.TaskStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDateTime;
@@ -13,25 +15,73 @@ import java.util.List;
 /**
  * Spring Data JPA repository for ServiceTask entity.
  * Provides database persistence operations for service tasks.
- * Currently returns hardcoded data for initial development.
+ * Inherits CRUD operations from JpaRepository: create, findById, findAll, update, delete.
  */
 @Repository
 public interface TaskRepository extends JpaRepository<ServiceTask, Long> {
     
     /**
-     * Find tasks by status
+     * Find tasks by status (uses idx_service_tasks_status index)
      */
     List<ServiceTask> findByStatus(TaskStatus status);
     
     /**
-     * Find tasks by priority
+     * Find tasks by priority (uses idx_service_tasks_priority index)
      */
     List<ServiceTask> findByPriority(Priority priority);
     
     /**
-     * Find tasks by created by
+     * Find tasks by created by (uses idx_service_tasks_created_by index)
      */
     List<ServiceTask> findByCreatedBy(String createdBy);
+    
+    /**
+     * Find tasks by status and priority (uses idx_service_tasks_status_priority composite index)
+     */
+    List<ServiceTask> findByStatusAndPriority(TaskStatus status, Priority priority);
+    
+    /**
+     * Find tasks created after a specific date (uses idx_service_tasks_created_at index)
+     */
+    List<ServiceTask> findByCreatedAtAfter(LocalDateTime date);
+    
+    /**
+     * Find tasks created before a specific date (uses idx_service_tasks_created_at index)
+     */
+    List<ServiceTask> findByCreatedAtBefore(LocalDateTime date);
+    
+    /**
+     * Find tasks created between two dates (uses idx_service_tasks_created_at index)
+     */
+    List<ServiceTask> findByCreatedAtBetween(LocalDateTime startDate, LocalDateTime endDate);
+    
+    /**
+     * Find tasks by status ordered by priority (HIGH tasks first)
+     */
+    @Query("SELECT t FROM ServiceTask t WHERE t.status = :status ORDER BY " +
+           "CASE t.priority WHEN 'HIGH' THEN 1 WHEN 'MEDIUM' THEN 2 WHEN 'LOW' THEN 3 END")
+    List<ServiceTask> findByStatusOrderByPriorityDesc(@Param("status") TaskStatus status);
+    
+    /**
+     * Find tasks by status ordered by created date (most recent first)
+     */
+    List<ServiceTask> findByStatusOrderByCreatedAtDesc(TaskStatus status);
+    
+    /**
+     * Count tasks by status
+     */
+    long countByStatus(TaskStatus status);
+    
+    /**
+     * Count tasks by priority
+     */
+    long countByPriority(Priority priority);
+    
+    /**
+     * Find all unassigned high priority tasks (for dispatcher dashboard)
+     */
+    @Query("SELECT t FROM ServiceTask t WHERE t.status = 'UNASSIGNED' AND t.priority = 'HIGH' ORDER BY t.createdAt ASC")
+    List<ServiceTask> findUrgentUnassignedTasks();
     
     /**
      * Returns hardcoded sample tasks for initial development
