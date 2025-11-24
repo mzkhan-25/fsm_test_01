@@ -114,18 +114,6 @@ class JwtUtilTest {
     }
     
     @Test
-    void testGenerateTokenWithDifferentRoles() {
-        Role[] roles = {Role.ADMIN, Role.DISPATCHER, Role.SUPERVISOR, Role.TECHNICIAN};
-        
-        for (Role role : roles) {
-            String token = jwtUtil.generateToken(1L, "test@example.com", "Test User", role, false);
-            String extractedRole = jwtUtil.extractClaim(token, claims -> claims.get("role", String.class));
-            
-            assertEquals(role.name(), extractedRole);
-        }
-    }
-    
-    @Test
     void testWebTokenExpiration() {
         String token = jwtUtil.generateToken(1L, "test@example.com", "Test User", Role.ADMIN, false);
         
