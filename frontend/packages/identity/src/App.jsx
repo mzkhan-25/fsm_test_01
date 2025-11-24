@@ -1,17 +1,15 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import LoginPage from './components/LoginPage'
 import UserManagement from './components/UserManagement'
 
 function App() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [userRole, setUserRole] = useState(null);
-
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    const role = localStorage.getItem('userRole');
-    setIsAuthenticated(!!token);
-    setUserRole(role);
-  }, []);
+  // Initialize state directly from localStorage
+  const [isAuthenticated, setIsAuthenticated] = useState(() => {
+    return !!localStorage.getItem('token');
+  });
+  const [userRole, setUserRole] = useState(() => {
+    return localStorage.getItem('userRole');
+  });
 
   const handleLogout = () => {
     localStorage.clear();
