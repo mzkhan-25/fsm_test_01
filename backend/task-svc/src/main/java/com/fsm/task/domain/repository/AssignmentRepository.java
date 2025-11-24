@@ -75,6 +75,47 @@ public interface AssignmentRepository extends JpaRepository<Assignment, Long> {
     }
     
     /**
+     * Find all assignments for a task ordered by assignment date (most recent first)
+     * This provides the assignment history for a task
+     * @param taskId The task ID
+     * @return List of assignments ordered by assignedAt descending
+     */
+    List<Assignment> findByTaskIdOrderByAssignedAtDesc(Long taskId);
+    
+    /**
+     * Find all assignments for a technician ordered by assignment date (most recent first)
+     * @param technicianId The technician ID
+     * @return List of assignments ordered by assignedAt descending
+     */
+    List<Assignment> findByTechnicianIdOrderByAssignedAtDesc(Long technicianId);
+    
+    /**
+     * Find all assignments assigned within a date range
+     * @param startDate Start of the date range
+     * @param endDate End of the date range
+     * @return List of assignments within the date range
+     */
+    List<Assignment> findByAssignedAtBetween(LocalDateTime startDate, LocalDateTime endDate);
+    
+    /**
+     * Find the current active assignment for a task (convenience method)
+     * @param taskId The task ID
+     * @return Optional containing the active assignment if found
+     */
+    default Optional<Assignment> findActiveAssignmentForTask(Long taskId) {
+        return findByTaskIdAndStatus(taskId, AssignmentStatus.ACTIVE);
+    }
+    
+    /**
+     * Get all active assignments for a technician (convenience method)
+     * @param technicianId The technician ID
+     * @return List of active assignments
+     */
+    default List<Assignment> findActiveAssignmentsForTechnician(Long technicianId) {
+        return findByTechnicianIdAndStatus(technicianId, AssignmentStatus.ACTIVE);
+    }
+    
+    /**
      * Returns hardcoded sample assignments for initial development
      * This method provides sample assignments with various statuses
      */
