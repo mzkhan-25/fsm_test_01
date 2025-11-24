@@ -2,6 +2,10 @@ package com.fsm.task.domain.repository;
 
 import com.fsm.task.domain.model.Assignment;
 import com.fsm.task.domain.model.Assignment.AssignmentStatus;
+import com.fsm.task.domain.model.ServiceTask;
+import com.fsm.task.domain.model.ServiceTask.Priority;
+import com.fsm.task.domain.model.ServiceTask.TaskStatus;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
@@ -22,6 +26,44 @@ class AssignmentRepositoryTest {
     
     @Autowired
     private AssignmentRepository assignmentRepository;
+    
+    @Autowired
+    private TaskRepository taskRepository;
+    
+    private ServiceTask testTask1;
+    private ServiceTask testTask2;
+    private ServiceTask testTask3;
+    
+    @BeforeEach
+    void setUp() {
+        assignmentRepository.deleteAll();
+        taskRepository.deleteAll();
+        
+        // Create test tasks for foreign key constraints
+        testTask1 = taskRepository.save(ServiceTask.builder()
+                .title("Test Task 1")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.UNASSIGNED)
+                .createdBy("test@example.com")
+                .build());
+        
+        testTask2 = taskRepository.save(ServiceTask.builder()
+                .title("Test Task 2")
+                .clientAddress("456 Test Ave")
+                .priority(Priority.MEDIUM)
+                .status(TaskStatus.UNASSIGNED)
+                .createdBy("test@example.com")
+                .build());
+        
+        testTask3 = taskRepository.save(ServiceTask.builder()
+                .title("Test Task 3")
+                .clientAddress("789 Test Blvd")
+                .priority(Priority.LOW)
+                .status(TaskStatus.UNASSIGNED)
+                .createdBy("test@example.com")
+                .build());
+    }
     
     @Test
     void testRepositoryIsInjected() {
@@ -107,7 +149,7 @@ class AssignmentRepositoryTest {
     @Test
     void testSaveAndFindAssignment() {
         Assignment assignment = Assignment.builder()
-                .taskId(100L)
+                .taskId(testTask1.getId())
                 .technicianId(200L)
                 .assignedAt(LocalDateTime.now())
                 .assignedBy("test@example.com")
@@ -117,7 +159,7 @@ class AssignmentRepositoryTest {
         Assignment saved = assignmentRepository.save(assignment);
         
         assertNotNull(saved.getId());
-        assertEquals(100L, saved.getTaskId());
+        assertEquals(testTask1.getId(), saved.getTaskId());
         assertEquals(200L, saved.getTechnicianId());
         assertEquals(AssignmentStatus.ACTIVE, saved.getStatus());
     }
@@ -125,7 +167,7 @@ class AssignmentRepositoryTest {
     @Test
     void testFindByTaskId() {
         Assignment assignment1 = Assignment.builder()
-                .taskId(10L)
+                .taskId(testTask1.getId())
                 .technicianId(101L)
                 .assignedAt(LocalDateTime.now())
                 .assignedBy("dispatcher@fsm.com")
@@ -133,7 +175,7 @@ class AssignmentRepositoryTest {
                 .build();
         
         Assignment assignment2 = Assignment.builder()
-                .taskId(10L)
+                .taskId(testTask1.getId())
                 .technicianId(102L)
                 .assignedAt(LocalDateTime.now().minusDays(1))
                 .assignedBy("dispatcher@fsm.com")
@@ -144,16 +186,16 @@ class AssignmentRepositoryTest {
         assignmentRepository.save(assignment1);
         assignmentRepository.save(assignment2);
         
-        List<Assignment> assignments = assignmentRepository.findByTaskId(10L);
+        List<Assignment> assignments = assignmentRepository.findByTaskId(testTask1.getId());
         
         assertEquals(2, assignments.size());
-        assertTrue(assignments.stream().allMatch(a -> a.getTaskId().equals(10L)));
+        assertTrue(assignments.stream().allMatch(a -> a.getTaskId().equals(testTask1.getId())));
     }
     
     @Test
     void testFindByTechnicianId() {
         Assignment assignment1 = Assignment.builder()
-                .taskId(10L)
+                .taskId(testTask1.getId())
                 .technicianId(101L)
                 .assignedAt(LocalDateTime.now())
                 .assignedBy("dispatcher@fsm.com")
@@ -161,7 +203,7 @@ class AssignmentRepositoryTest {
                 .build();
         
         Assignment assignment2 = Assignment.builder()
-                .taskId(20L)
+                .taskId(testTask2.getId())
                 .technicianId(101L)
                 .assignedAt(LocalDateTime.now())
                 .assignedBy("dispatcher@fsm.com")
@@ -180,7 +222,7 @@ class AssignmentRepositoryTest {
     @Test
     void testFindByTechnicianIdAndStatus() {
         Assignment activeAssignment = Assignment.builder()
-                .taskId(10L)
+                .taskId(testTask1.getId())
                 .technicianId(101L)
                 .assignedAt(LocalDateTime.now())
                 .assignedBy("dispatcher@fsm.com")
@@ -188,7 +230,7 @@ class AssignmentRepositoryTest {
                 .build();
         
         Assignment completedAssignment = Assignment.builder()
-                .taskId(20L)
+                .taskId(testTask2.getId())
                 .technicianId(101L)
                 .assignedAt(LocalDateTime.now())
                 .assignedBy("dispatcher@fsm.com")
@@ -210,7 +252,7 @@ class AssignmentRepositoryTest {
     @Test
     void testFindByTaskIdAndStatus() {
         Assignment activeAssignment = Assignment.builder()
-                .taskId(10L)
+                .taskId(testTask1.getId())
                 .technicianId(101L)
                 .assignedAt(LocalDateTime.now())
                 .assignedBy("dispatcher@fsm.com")
@@ -218,7 +260,7 @@ class AssignmentRepositoryTest {
                 .build();
         
         Assignment reassignedAssignment = Assignment.builder()
-                .taskId(10L)
+                .taskId(testTask1.getId())
                 .technicianId(102L)
                 .assignedAt(LocalDateTime.now().minusDays(1))
                 .assignedBy("dispatcher@fsm.com")
@@ -229,7 +271,7 @@ class AssignmentRepositoryTest {
         assignmentRepository.save(activeAssignment);
         assignmentRepository.save(reassignedAssignment);
         
-        Optional<Assignment> active = assignmentRepository.findByTaskIdAndStatus(10L, AssignmentStatus.ACTIVE);
+        Optional<Assignment> active = assignmentRepository.findByTaskIdAndStatus(testTask1.getId(), AssignmentStatus.ACTIVE);
         
         assertTrue(active.isPresent());
         assertEquals(101L, active.get().getTechnicianId());
@@ -238,7 +280,7 @@ class AssignmentRepositoryTest {
     @Test
     void testFindByStatus() {
         Assignment activeAssignment = Assignment.builder()
-                .taskId(10L)
+                .taskId(testTask1.getId())
                 .technicianId(101L)
                 .assignedAt(LocalDateTime.now())
                 .assignedBy("dispatcher@fsm.com")
@@ -246,7 +288,7 @@ class AssignmentRepositoryTest {
                 .build();
         
         Assignment completedAssignment = Assignment.builder()
-                .taskId(20L)
+                .taskId(testTask2.getId())
                 .technicianId(102L)
                 .assignedAt(LocalDateTime.now())
                 .assignedBy("dispatcher@fsm.com")
@@ -266,7 +308,7 @@ class AssignmentRepositoryTest {
     @Test
     void testCountByTechnicianIdAndStatus() {
         Assignment assignment1 = Assignment.builder()
-                .taskId(10L)
+                .taskId(testTask1.getId())
                 .technicianId(101L)
                 .assignedAt(LocalDateTime.now())
                 .assignedBy("dispatcher@fsm.com")
@@ -274,7 +316,7 @@ class AssignmentRepositoryTest {
                 .build();
         
         Assignment assignment2 = Assignment.builder()
-                .taskId(20L)
+                .taskId(testTask2.getId())
                 .technicianId(101L)
                 .assignedAt(LocalDateTime.now())
                 .assignedBy("dispatcher@fsm.com")
@@ -282,7 +324,7 @@ class AssignmentRepositoryTest {
                 .build();
         
         Assignment assignment3 = Assignment.builder()
-                .taskId(30L)
+                .taskId(testTask3.getId())
                 .technicianId(101L)
                 .assignedAt(LocalDateTime.now())
                 .assignedBy("dispatcher@fsm.com")
@@ -301,7 +343,7 @@ class AssignmentRepositoryTest {
     @Test
     void testGetTechnicianWorkload() {
         Assignment assignment1 = Assignment.builder()
-                .taskId(10L)
+                .taskId(testTask1.getId())
                 .technicianId(101L)
                 .assignedAt(LocalDateTime.now())
                 .assignedBy("dispatcher@fsm.com")
@@ -309,7 +351,7 @@ class AssignmentRepositoryTest {
                 .build();
         
         Assignment assignment2 = Assignment.builder()
-                .taskId(20L)
+                .taskId(testTask2.getId())
                 .technicianId(101L)
                 .assignedAt(LocalDateTime.now())
                 .assignedBy("dispatcher@fsm.com")
@@ -317,7 +359,7 @@ class AssignmentRepositoryTest {
                 .build();
         
         Assignment assignment3 = Assignment.builder()
-                .taskId(30L)
+                .taskId(testTask3.getId())
                 .technicianId(101L)
                 .assignedAt(LocalDateTime.now())
                 .assignedBy("dispatcher@fsm.com")
@@ -343,7 +385,7 @@ class AssignmentRepositoryTest {
     @Test
     void testUpdateAssignment() {
         Assignment assignment = Assignment.builder()
-                .taskId(10L)
+                .taskId(testTask1.getId())
                 .technicianId(101L)
                 .assignedAt(LocalDateTime.now())
                 .assignedBy("dispatcher@fsm.com")
@@ -366,7 +408,7 @@ class AssignmentRepositoryTest {
     @Test
     void testDeleteAssignment() {
         Assignment assignment = Assignment.builder()
-                .taskId(10L)
+                .taskId(testTask1.getId())
                 .technicianId(101L)
                 .assignedAt(LocalDateTime.now())
                 .assignedBy("dispatcher@fsm.com")
@@ -388,7 +430,7 @@ class AssignmentRepositoryTest {
         long initialCount = assignmentRepository.count();
         
         Assignment assignment = Assignment.builder()
-                .taskId(10L)
+                .taskId(testTask1.getId())
                 .technicianId(101L)
                 .assignedAt(LocalDateTime.now())
                 .assignedBy("dispatcher@fsm.com")
@@ -404,7 +446,7 @@ class AssignmentRepositoryTest {
     @Test
     void testFindAll() {
         Assignment assignment1 = Assignment.builder()
-                .taskId(10L)
+                .taskId(testTask1.getId())
                 .technicianId(101L)
                 .assignedAt(LocalDateTime.now())
                 .assignedBy("dispatcher@fsm.com")
@@ -412,7 +454,7 @@ class AssignmentRepositoryTest {
                 .build();
         
         Assignment assignment2 = Assignment.builder()
-                .taskId(20L)
+                .taskId(testTask2.getId())
                 .technicianId(102L)
                 .assignedAt(LocalDateTime.now())
                 .assignedBy("dispatcher@fsm.com")
@@ -430,7 +472,7 @@ class AssignmentRepositoryTest {
     @Test
     void testTimestampsAreSet() {
         Assignment assignment = Assignment.builder()
-                .taskId(10L)
+                .taskId(testTask1.getId())
                 .technicianId(101L)
                 .assignedBy("dispatcher@fsm.com")
                 .status(AssignmentStatus.ACTIVE)
@@ -445,7 +487,7 @@ class AssignmentRepositoryTest {
     void testAssignmentHistoryPreservation() {
         // Create initial assignment
         Assignment initialAssignment = Assignment.builder()
-                .taskId(10L)
+                .taskId(testTask1.getId())
                 .technicianId(101L)
                 .assignedAt(LocalDateTime.now().minusDays(1))
                 .assignedBy("dispatcher@fsm.com")
@@ -460,7 +502,7 @@ class AssignmentRepositoryTest {
         
         // Create new assignment
         Assignment newAssignment = Assignment.builder()
-                .taskId(10L)
+                .taskId(testTask1.getId())
                 .technicianId(102L)
                 .assignedAt(LocalDateTime.now())
                 .assignedBy("dispatcher@fsm.com")
@@ -470,7 +512,7 @@ class AssignmentRepositoryTest {
         assignmentRepository.save(newAssignment);
         
         // Verify history is preserved
-        List<Assignment> taskAssignments = assignmentRepository.findByTaskId(10L);
+        List<Assignment> taskAssignments = assignmentRepository.findByTaskId(testTask1.getId());
         assertEquals(2, taskAssignments.size(), "Should have 2 assignments for the task (original + new)");
         
         long activeCount = taskAssignments.stream().filter(Assignment::isActive).count();
@@ -479,5 +521,131 @@ class AssignmentRepositoryTest {
         
         assertEquals(1, activeCount, "Should have exactly 1 active assignment");
         assertEquals(1, reassignedCount, "Should have exactly 1 reassigned assignment");
+    }
+    
+    @Test
+    void testFindByTaskIdOrderByAssignedAtDesc() {
+        Assignment assignment1 = assignmentRepository.save(Assignment.builder()
+                .taskId(testTask1.getId())
+                .technicianId(101L)
+                .assignedAt(LocalDateTime.now().minusDays(2))
+                .assignedBy("dispatcher@fsm.com")
+                .status(AssignmentStatus.REASSIGNED)
+                .reason("Reassigned")
+                .build());
+        
+        Assignment assignment2 = assignmentRepository.save(Assignment.builder()
+                .taskId(testTask1.getId())
+                .technicianId(102L)
+                .assignedAt(LocalDateTime.now())
+                .assignedBy("dispatcher@fsm.com")
+                .status(AssignmentStatus.ACTIVE)
+                .build());
+        
+        List<Assignment> assignments = assignmentRepository.findByTaskIdOrderByAssignedAtDesc(testTask1.getId());
+        
+        assertEquals(2, assignments.size());
+        assertEquals(102L, assignments.get(0).getTechnicianId());
+        assertEquals(101L, assignments.get(1).getTechnicianId());
+    }
+    
+    @Test
+    void testFindByTechnicianIdOrderByAssignedAtDesc() {
+        Assignment assignment1 = assignmentRepository.save(Assignment.builder()
+                .taskId(testTask1.getId())
+                .technicianId(101L)
+                .assignedAt(LocalDateTime.now().minusDays(2))
+                .assignedBy("dispatcher@fsm.com")
+                .status(AssignmentStatus.COMPLETED)
+                .build());
+        
+        Assignment assignment2 = assignmentRepository.save(Assignment.builder()
+                .taskId(testTask2.getId())
+                .technicianId(101L)
+                .assignedAt(LocalDateTime.now())
+                .assignedBy("dispatcher@fsm.com")
+                .status(AssignmentStatus.ACTIVE)
+                .build());
+        
+        List<Assignment> assignments = assignmentRepository.findByTechnicianIdOrderByAssignedAtDesc(101L);
+        
+        assertEquals(2, assignments.size());
+        assertTrue(assignments.get(0).getAssignedAt().isAfter(assignments.get(1).getAssignedAt()));
+    }
+    
+    @Test
+    void testFindByAssignedAtBetween() {
+        LocalDateTime yesterday = LocalDateTime.now().minusDays(1);
+        LocalDateTime tomorrow = LocalDateTime.now().plusDays(1);
+        
+        assignmentRepository.save(Assignment.builder()
+                .taskId(testTask1.getId())
+                .technicianId(101L)
+                .assignedAt(LocalDateTime.now())
+                .assignedBy("dispatcher@fsm.com")
+                .status(AssignmentStatus.ACTIVE)
+                .build());
+        
+        List<Assignment> assignments = assignmentRepository.findByAssignedAtBetween(yesterday, tomorrow);
+        
+        assertEquals(1, assignments.size());
+    }
+    
+    @Test
+    void testFindActiveAssignmentForTask() {
+        assignmentRepository.save(Assignment.builder()
+                .taskId(testTask1.getId())
+                .technicianId(101L)
+                .assignedAt(LocalDateTime.now().minusDays(1))
+                .assignedBy("dispatcher@fsm.com")
+                .status(AssignmentStatus.REASSIGNED)
+                .reason("Reassigned")
+                .build());
+        
+        assignmentRepository.save(Assignment.builder()
+                .taskId(testTask1.getId())
+                .technicianId(102L)
+                .assignedAt(LocalDateTime.now())
+                .assignedBy("dispatcher@fsm.com")
+                .status(AssignmentStatus.ACTIVE)
+                .build());
+        
+        Optional<Assignment> active = assignmentRepository.findActiveAssignmentForTask(testTask1.getId());
+        
+        assertTrue(active.isPresent());
+        assertEquals(102L, active.get().getTechnicianId());
+        assertTrue(active.get().isActive());
+    }
+    
+    @Test
+    void testFindActiveAssignmentsForTechnician() {
+        assignmentRepository.save(Assignment.builder()
+                .taskId(testTask1.getId())
+                .technicianId(101L)
+                .assignedAt(LocalDateTime.now())
+                .assignedBy("dispatcher@fsm.com")
+                .status(AssignmentStatus.ACTIVE)
+                .build());
+        
+        assignmentRepository.save(Assignment.builder()
+                .taskId(testTask2.getId())
+                .technicianId(101L)
+                .assignedAt(LocalDateTime.now())
+                .assignedBy("dispatcher@fsm.com")
+                .status(AssignmentStatus.ACTIVE)
+                .build());
+        
+        assignmentRepository.save(Assignment.builder()
+                .taskId(testTask3.getId())
+                .technicianId(101L)
+                .assignedAt(LocalDateTime.now())
+                .assignedBy("dispatcher@fsm.com")
+                .status(AssignmentStatus.COMPLETED)
+                .build());
+        
+        List<Assignment> activeAssignments = assignmentRepository.findActiveAssignmentsForTechnician(101L);
+        
+        assertEquals(2, activeAssignments.size());
+        assertTrue(activeAssignments.stream().allMatch(Assignment::isActive));
     }
 }

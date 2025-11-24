@@ -1,0 +1,84 @@
+-- V2__create_assignments_table.sql
+-- Creates the assignments table with all required fields, constraints, and indexes
+-- for the Assignment & Dispatch bounded context.
+-- Also adds the assigned_technician_id column to service_tasks table.
+
+-- Add assigned_technician_id column to service_tasks if not exists
+ALTER TABLE service_tasks ADD COLUMN IF NOT EXISTS assigned_technician_id BIGINT;
+
+-- Add index for assigned_technician_id for query performance
+CREATE INDEX IF NOT EXISTS idx_service_tasks_assigned_technician ON service_tasks(assigned_technician_id);
+
+-- Create assignments table
+CREATE TABLE IF NOT EXISTS assignments (
+    id BIGSERIAL PRIMARY KEY,
+    task_id BIGINT NOT NULL,
+    technician_id BIGINT NOT NULL,
+    assigned_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    assigned_by VARCHAR(255) NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE',
+    reason VARCHAR(500),
+    
+    -- Domain Invariants: Constraints
+    CONSTRAINT chk_assignment_status_valid CHECK (status IN ('ACTIVE', 'REASSIGNED', 'COMPLETED', 'CANCELLED')),
+    
+    -- Foreign key constraints (referential integrity)
+    CONSTRAINT fk_assignment_task FOREIGN KEY (task_id) REFERENCES service_tasks(id)
+);
+
+-- Indexes for query performance
+CREATE INDEX IF NOT EXISTS idx_assignments_task_id ON assignments(task_id);
+CREATE INDEX IF NOT EXISTS idx_assignments_technician_id ON assignments(technician_id);
+CREATE INDEX IF NOT EXISTS idx_assignments_status ON assignments(status);
+CREATE INDEX IF NOT EXISTS idx_assignments_assigned_at ON assignments(assigned_at);
+
+-- Composite indexes for common queries
+CREATE INDEX IF NOT EXISTS idx_assignments_technician_status ON assignments(technician_id, status);
+CREATE INDEX IF NOT EXISTS idx_assignments_task_status ON assignments(task_id, status);
+
+-- Create assignment_history table for audit trail
+-- This table records all assignment changes and cannot be deleted (audit trail)
+CREATE TABLE IF NOT EXISTS assignment_history (
+    id BIGSERIAL PRIMARY KEY,
+    assignment_id BIGINT NOT NULL,
+    task_id BIGINT NOT NULL,
+    technician_id BIGINT NOT NULL,
+    previous_technician_id BIGINT,
+    action VARCHAR(50) NOT NULL,
+    action_by VARCHAR(255) NOT NULL,
+    action_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    reason VARCHAR(500),
+    
+    -- Domain Invariants: Constraints
+    CONSTRAINT chk_history_action_valid CHECK (action IN ('CREATED', 'REASSIGNED', 'COMPLETED', 'CANCELLED')),
+    
+    -- Foreign key to assignments table
+    CONSTRAINT fk_history_assignment FOREIGN KEY (assignment_id) REFERENCES assignments(id)
+);
+
+-- Indexes for assignment_history
+CREATE INDEX IF NOT EXISTS idx_history_assignment_id ON assignment_history(assignment_id);
+CREATE INDEX IF NOT EXISTS idx_history_task_id ON assignment_history(task_id);
+CREATE INDEX IF NOT EXISTS idx_history_technician_id ON assignment_history(technician_id);
+CREATE INDEX IF NOT EXISTS idx_history_action_at ON assignment_history(action_at);
+
+-- Comments for documentation
+COMMENT ON TABLE assignments IS 'Assignment entity - represents task-technician assignments';
+COMMENT ON COLUMN assignments.id IS 'Unique identifier for the assignment';
+COMMENT ON COLUMN assignments.task_id IS 'Reference to the service task being assigned';
+COMMENT ON COLUMN assignments.technician_id IS 'Reference to the technician the task is assigned to';
+COMMENT ON COLUMN assignments.assigned_at IS 'Timestamp when the assignment was created';
+COMMENT ON COLUMN assignments.assigned_by IS 'User who created the assignment';
+COMMENT ON COLUMN assignments.status IS 'Assignment status: ACTIVE, REASSIGNED, COMPLETED, CANCELLED';
+COMMENT ON COLUMN assignments.reason IS 'Optional reason for status change (e.g., reassignment reason)';
+
+COMMENT ON TABLE assignment_history IS 'Audit trail for all assignment changes - records are never deleted';
+COMMENT ON COLUMN assignment_history.id IS 'Unique identifier for the history record';
+COMMENT ON COLUMN assignment_history.assignment_id IS 'Reference to the assignment';
+COMMENT ON COLUMN assignment_history.task_id IS 'Reference to the service task';
+COMMENT ON COLUMN assignment_history.technician_id IS 'Current technician for this action';
+COMMENT ON COLUMN assignment_history.previous_technician_id IS 'Previous technician (for reassignments)';
+COMMENT ON COLUMN assignment_history.action IS 'Type of action: CREATED, REASSIGNED, COMPLETED, CANCELLED';
+COMMENT ON COLUMN assignment_history.action_by IS 'User who performed the action';
+COMMENT ON COLUMN assignment_history.action_at IS 'Timestamp when the action was performed';
+COMMENT ON COLUMN assignment_history.reason IS 'Optional reason for the action';
