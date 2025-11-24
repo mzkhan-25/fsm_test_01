@@ -488,7 +488,7 @@ class ServiceTaskTest {
         ServiceTask task = new ServiceTask(1L, "Test", "Description", 
                 "123 Test St", ServiceTask.Priority.HIGH, 60, 
                 ServiceTask.TaskStatus.UNASSIGNED, "test@example.com", 
-                LocalDateTime.now());
+                LocalDateTime.now(), null);
         
         assertNotNull(task);
         assertEquals(1L, task.getId());
@@ -735,5 +735,160 @@ class ServiceTaskTest {
             
             assertEquals(status, task.getStatus());
         }
+    }
+    
+    @Test
+    void testAssignToTechnicianMethod() {
+        ServiceTask task = ServiceTask.builder()
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(ServiceTask.Priority.HIGH)
+                .status(ServiceTask.TaskStatus.UNASSIGNED)
+                .build();
+        
+        assertTrue(task.isUnassigned());
+        assertNull(task.getAssignedTechnicianId());
+        
+        task.assignToTechnician(101L);
+        
+        assertEquals(ServiceTask.TaskStatus.ASSIGNED, task.getStatus());
+        assertEquals(101L, task.getAssignedTechnicianId());
+    }
+    
+    @Test
+    void testAssignToTechnicianOnlyFromUnassigned() {
+        ServiceTask task = ServiceTask.builder()
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(ServiceTask.Priority.HIGH)
+                .status(ServiceTask.TaskStatus.COMPLETED)
+                .build();
+        
+        task.assignToTechnician(101L);
+        
+        // Should not change status if not unassigned
+        assertEquals(ServiceTask.TaskStatus.COMPLETED, task.getStatus());
+        assertNull(task.getAssignedTechnicianId());
+    }
+    
+    @Test
+    void testReassignToTechnicianMethod() {
+        ServiceTask task = ServiceTask.builder()
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(ServiceTask.Priority.HIGH)
+                .status(ServiceTask.TaskStatus.ASSIGNED)
+                .assignedTechnicianId(101L)
+                .build();
+        
+        task.reassignToTechnician(102L);
+        
+        assertEquals(ServiceTask.TaskStatus.ASSIGNED, task.getStatus());
+        assertEquals(102L, task.getAssignedTechnicianId());
+    }
+    
+    @Test
+    void testReassignToTechnicianOnlyFromAssigned() {
+        ServiceTask task = ServiceTask.builder()
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(ServiceTask.Priority.HIGH)
+                .status(ServiceTask.TaskStatus.UNASSIGNED)
+                .build();
+        
+        task.reassignToTechnician(101L);
+        
+        // Should not change if not assigned
+        assertEquals(ServiceTask.TaskStatus.UNASSIGNED, task.getStatus());
+        assertNull(task.getAssignedTechnicianId());
+    }
+    
+    @Test
+    void testCanBeAssignedFromUnassigned() {
+        ServiceTask task = ServiceTask.builder()
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(ServiceTask.Priority.HIGH)
+                .status(ServiceTask.TaskStatus.UNASSIGNED)
+                .build();
+        
+        assertTrue(task.canBeAssigned());
+    }
+    
+    @Test
+    void testCanBeAssignedFromAssigned() {
+        ServiceTask task = ServiceTask.builder()
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(ServiceTask.Priority.HIGH)
+                .status(ServiceTask.TaskStatus.ASSIGNED)
+                .build();
+        
+        assertTrue(task.canBeAssigned());
+    }
+    
+    @Test
+    void testCannotBeAssignedFromInProgress() {
+        ServiceTask task = ServiceTask.builder()
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(ServiceTask.Priority.HIGH)
+                .status(ServiceTask.TaskStatus.IN_PROGRESS)
+                .build();
+        
+        assertFalse(task.canBeAssigned());
+    }
+    
+    @Test
+    void testCannotBeAssignedFromCompleted() {
+        ServiceTask task = ServiceTask.builder()
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(ServiceTask.Priority.HIGH)
+                .status(ServiceTask.TaskStatus.COMPLETED)
+                .build();
+        
+        assertFalse(task.canBeAssigned());
+    }
+    
+    @Test
+    void testIsAssignedMethod() {
+        ServiceTask assignedTask = ServiceTask.builder()
+                .title("Assigned Task")
+                .clientAddress("123 Test St")
+                .priority(ServiceTask.Priority.HIGH)
+                .status(ServiceTask.TaskStatus.ASSIGNED)
+                .build();
+        
+        ServiceTask unassignedTask = ServiceTask.builder()
+                .title("Unassigned Task")
+                .clientAddress("456 Test Ave")
+                .priority(ServiceTask.Priority.LOW)
+                .status(ServiceTask.TaskStatus.UNASSIGNED)
+                .build();
+        
+        assertTrue(assignedTask.isAssigned());
+        assertFalse(unassignedTask.isAssigned());
+    }
+    
+    @Test
+    void testAssignedTechnicianIdField() {
+        ServiceTask task = ServiceTask.builder()
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(ServiceTask.Priority.HIGH)
+                .status(ServiceTask.TaskStatus.ASSIGNED)
+                .assignedTechnicianId(101L)
+                .build();
+        
+        assertEquals(101L, task.getAssignedTechnicianId());
+    }
+    
+    @Test
+    void testSetAssignedTechnicianId() {
+        ServiceTask task = new ServiceTask();
+        task.setAssignedTechnicianId(101L);
+        
+        assertEquals(101L, task.getAssignedTechnicianId());
     }
 }
