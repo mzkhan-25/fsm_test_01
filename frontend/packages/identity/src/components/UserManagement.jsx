@@ -94,7 +94,7 @@ const UserManagement = () => {
       errors.email = 'Email must be valid';
     }
     
-    if (formData.phone && !/^\+?[1-9]\d{1,14}$/.test(formData.phone)) {
+    if (formData.phone && !/^\+?[1-9]\d{0,14}$/.test(formData.phone)) {
       errors.phone = 'Phone number must be in E.164 format (e.g., +12025551234)';
     }
     

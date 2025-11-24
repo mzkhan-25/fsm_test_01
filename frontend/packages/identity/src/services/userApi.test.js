@@ -253,8 +253,8 @@ describe('userApi', () => {
       expect(fetch).toHaveBeenCalledWith(
         expect.any(String),
         expect.objectContaining({
-          headers: expect.objectContaining({
-            'Authorization': '',
+          headers: expect.not.objectContaining({
+            'Authorization': expect.anything(),
           }),
         })
       );
