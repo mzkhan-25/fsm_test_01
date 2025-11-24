@@ -37,7 +37,8 @@ public class User {
     @Column(nullable = false, unique = true)
     private String email;
     
-    @Pattern(regexp = "^\\+?[1-9]\\d{1,14}$", message = "Phone number must be valid E.164 format")
+    @Pattern(regexp = "^\\+?[1-9]\\d{1,14}$", 
+             message = "Phone number must be in E.164 format (e.g., +12025551234)")
     @Column(name = "phone")
     private String phone;
     

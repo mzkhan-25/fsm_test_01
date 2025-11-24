@@ -95,9 +95,14 @@ public class UserRepository {
      * Find user by email
      */
     public Optional<User> findByEmail(String email) {
-        return users.values().stream()
-                .filter(user -> user.getEmail().equals(email))
-                .findFirst();
+        if (email == null) {
+            return Optional.empty();
+        }
+        Long userId = emailToId.get(email);
+        if (userId == null) {
+            return Optional.empty();
+        }
+        return Optional.ofNullable(users.get(userId));
     }
     
     /**
@@ -177,7 +182,7 @@ public class UserRepository {
      * Check if email exists
      */
     public boolean existsByEmail(String email) {
-        return findByEmail(email).isPresent();
+        return email != null && emailToId.containsKey(email);
     }
     
     /**
