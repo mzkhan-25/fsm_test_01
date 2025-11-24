@@ -63,6 +63,9 @@ public class ServiceTask {
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
     
+    @Column(name = "assigned_technician_id")
+    private Long assignedTechnicianId;
+    
     /**
      * Priority enum representing task priority levels
      */
@@ -94,6 +97,44 @@ public class ServiceTask {
         if (this.status == TaskStatus.UNASSIGNED) {
             this.status = TaskStatus.ASSIGNED;
         }
+    }
+    
+    /**
+     * Assigns the task to a specific technician
+     * @param technicianId The ID of the technician to assign to
+     */
+    public void assignToTechnician(Long technicianId) {
+        if (this.status == TaskStatus.UNASSIGNED) {
+            this.status = TaskStatus.ASSIGNED;
+            this.assignedTechnicianId = technicianId;
+        }
+    }
+    
+    /**
+     * Reassigns the task to a different technician.
+     * Only tasks with status ASSIGNED can be reassigned.
+     * @param technicianId The ID of the new technician
+     */
+    public void reassignToTechnician(Long technicianId) {
+        if (this.status == TaskStatus.ASSIGNED) {
+            this.assignedTechnicianId = technicianId;
+        }
+    }
+    
+    /**
+     * Checks if the task can be assigned or reassigned
+     * @return true if the task can be (re)assigned
+     */
+    public boolean canBeAssigned() {
+        return this.status == TaskStatus.UNASSIGNED || this.status == TaskStatus.ASSIGNED;
+    }
+    
+    /**
+     * Checks if the task is currently assigned
+     * @return true if the task is assigned
+     */
+    public boolean isAssigned() {
+        return this.status == TaskStatus.ASSIGNED;
     }
     
     /**
