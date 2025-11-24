@@ -264,7 +264,8 @@ class RoleEntityTest {
         
         String builderStr = builder.toString();
         assertNotNull(builderStr);
-        assertTrue(builderStr.contains("TECHNICIAN") || builderStr.contains("RoleEntity.RoleEntityBuilder"));
+        // Lombok builder toString should contain the builder class name
+        assertTrue(builderStr.contains("RoleEntity.RoleEntityBuilder") || builderStr.contains("RoleEntityBuilder"));
     }
     
     @Test
