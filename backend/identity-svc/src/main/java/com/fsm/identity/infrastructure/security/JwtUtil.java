@@ -47,6 +47,13 @@ public class JwtUtil {
     }
     
     /**
+     * Extract role from JWT token
+     */
+    public String extractRole(String token) {
+        return extractClaim(token, claims -> claims.get("role", String.class));
+    }
+    
+    /**
      * Extract specific claim from JWT token
      */
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {

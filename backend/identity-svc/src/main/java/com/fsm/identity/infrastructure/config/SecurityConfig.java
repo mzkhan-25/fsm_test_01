@@ -1,5 +1,8 @@
 package com.fsm.identity.infrastructure.config;
 
+import com.fsm.identity.infrastructure.security.JwtAuthenticationFilter;
+import com.fsm.identity.infrastructure.security.RoleAuthorizationFilter;
+import lombok.RequiredArgsConstructor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -9,14 +12,19 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
  * Security configuration for the identity service.
- * Configures JWT-based authentication and authorization.
+ * Configures JWT-based authentication and authorization with role-based access control.
  */
 @Configuration
 @EnableWebSecurity
+@RequiredArgsConstructor
 public class SecurityConfig {
+    
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final RoleAuthorizationFilter roleAuthorizationFilter;
     
     /**
      * Password encoder bean using BCrypt
@@ -29,6 +37,7 @@ public class SecurityConfig {
     /**
      * Security filter chain configuration
      * Disables session management and uses JWT for authentication.
+     * Adds JWT authentication and role authorization filters to the security chain.
      * 
      * CSRF protection is disabled because this is a stateless REST API using JWT tokens.
      * CSRF attacks only work when cookies are used for authentication. Since this API
@@ -47,7 +56,11 @@ public class SecurityConfig {
                 )
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                );
+                )
+                // Add JWT authentication filter before UsernamePasswordAuthenticationFilter
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                // Add role authorization filter after JWT authentication filter
+                .addFilterAfter(roleAuthorizationFilter, JwtAuthenticationFilter.class);
         
         return http.build();
     }

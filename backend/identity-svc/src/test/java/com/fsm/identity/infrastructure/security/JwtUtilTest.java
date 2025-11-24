@@ -94,6 +94,26 @@ class JwtUtilTest {
     }
     
     @Test
+    void testExtractRole() {
+        String token = jwtUtil.generateToken(1L, "test@example.com", "Test User", Role.DISPATCHER, false);
+        
+        String role = jwtUtil.extractRole(token);
+        assertEquals("DISPATCHER", role);
+    }
+    
+    @Test
+    void testExtractRoleForAllRoles() {
+        Role[] roles = {Role.ADMIN, Role.DISPATCHER, Role.SUPERVISOR, Role.TECHNICIAN};
+        
+        for (Role expectedRole : roles) {
+            String token = jwtUtil.generateToken(1L, "test@example.com", "Test User", expectedRole, false);
+            String extractedRole = jwtUtil.extractRole(token);
+            
+            assertEquals(expectedRole.name(), extractedRole);
+        }
+    }
+    
+    @Test
     void testGenerateTokenWithDifferentRoles() {
         Role[] roles = {Role.ADMIN, Role.DISPATCHER, Role.SUPERVISOR, Role.TECHNICIAN};
         
