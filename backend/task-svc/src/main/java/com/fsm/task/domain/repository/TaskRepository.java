@@ -35,7 +35,7 @@ public interface TaskRepository extends JpaRepository<ServiceTask, Long> {
     
     /**
      * Returns hardcoded sample tasks for initial development
-     * This method provides 5-6 sample tasks with various statuses and priorities
+     * This method provides 6 sample tasks with various statuses and priorities
      */
     default List<ServiceTask> getHardcodedTasks() {
         LocalDateTime now = LocalDateTime.now();
