@@ -3,6 +3,8 @@ package com.fsm.task.application.service;
 import com.fsm.task.application.dto.AssignTaskRequest;
 import com.fsm.task.application.dto.AssignTaskResponse;
 import com.fsm.task.application.dto.CreateTaskRequest;
+import com.fsm.task.application.dto.ReassignTaskRequest;
+import com.fsm.task.application.dto.ReassignTaskResponse;
 import com.fsm.task.application.dto.TaskListRequest;
 import com.fsm.task.application.dto.TaskListResponse;
 import com.fsm.task.application.dto.TaskResponse;

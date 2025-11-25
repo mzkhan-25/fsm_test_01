@@ -891,4 +891,91 @@ class ServiceTaskTest {
         
         assertEquals(101L, task.getAssignedTechnicianId());
     }
+    
+    @Test
+    void testReassignToTechnicianFromInProgressSetsStatusToAssigned() {
+        ServiceTask task = ServiceTask.builder()
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(ServiceTask.Priority.HIGH)
+                .status(ServiceTask.TaskStatus.IN_PROGRESS)
+                .assignedTechnicianId(101L)
+                .build();
+        
+        assertEquals(ServiceTask.TaskStatus.IN_PROGRESS, task.getStatus());
+        
+        task.reassignToTechnician(102L);
+        
+        // Status should change to ASSIGNED when reassigning from IN_PROGRESS
+        assertEquals(ServiceTask.TaskStatus.ASSIGNED, task.getStatus());
+        assertEquals(102L, task.getAssignedTechnicianId());
+    }
+    
+    @Test
+    void testCanBeReassignedFromAssigned() {
+        ServiceTask task = ServiceTask.builder()
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(ServiceTask.Priority.HIGH)
+                .status(ServiceTask.TaskStatus.ASSIGNED)
+                .build();
+        
+        assertTrue(task.canBeReassigned());
+    }
+    
+    @Test
+    void testCanBeReassignedFromInProgress() {
+        ServiceTask task = ServiceTask.builder()
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(ServiceTask.Priority.HIGH)
+                .status(ServiceTask.TaskStatus.IN_PROGRESS)
+                .build();
+        
+        assertTrue(task.canBeReassigned());
+    }
+    
+    @Test
+    void testCannotBeReassignedFromUnassigned() {
+        ServiceTask task = ServiceTask.builder()
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(ServiceTask.Priority.HIGH)
+                .status(ServiceTask.TaskStatus.UNASSIGNED)
+                .build();
+        
+        assertFalse(task.canBeReassigned());
+    }
+    
+    @Test
+    void testCannotBeReassignedFromCompleted() {
+        ServiceTask task = ServiceTask.builder()
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(ServiceTask.Priority.HIGH)
+                .status(ServiceTask.TaskStatus.COMPLETED)
+                .build();
+        
+        assertFalse(task.canBeReassigned());
+    }
+    
+    @Test
+    void testIsInProgressMethod() {
+        ServiceTask inProgressTask = ServiceTask.builder()
+                .title("In Progress Task")
+                .clientAddress("123 Test St")
+                .priority(ServiceTask.Priority.HIGH)
+                .status(ServiceTask.TaskStatus.IN_PROGRESS)
+                .build();
+        
+        ServiceTask assignedTask = ServiceTask.builder()
+                .title("Assigned Task")
+                .clientAddress("456 Test Ave")
+                .priority(ServiceTask.Priority.LOW)
+                .status(ServiceTask.TaskStatus.ASSIGNED)
+                .build();
+        
+        assertTrue(inProgressTask.isInProgress());
+        assertFalse(assignedTask.isInProgress());
+    }
 }

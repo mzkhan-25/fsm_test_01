@@ -4,9 +4,13 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fsm.task.application.dto.AssignTaskRequest;
 import com.fsm.task.application.dto.AssignTaskResponse;
 import com.fsm.task.application.dto.CreateTaskRequest;
+import com.fsm.task.application.dto.ReassignTaskRequest;
+import com.fsm.task.application.dto.ReassignTaskResponse;
 import com.fsm.task.application.dto.TaskListRequest;
 import com.fsm.task.application.dto.TaskListResponse;
 import com.fsm.task.application.dto.TaskResponse;
+import com.fsm.task.application.exception.InvalidAssignmentException;
+import com.fsm.task.application.exception.TaskNotFoundException;
 import com.fsm.task.application.service.TaskService;
 import com.fsm.task.domain.model.ServiceTask.Priority;
 import com.fsm.task.domain.model.ServiceTask.TaskStatus;
@@ -581,5 +585,252 @@ class TaskControllerTest {
                 .last(true)
                 .statusCounts(createDefaultStatusCounts())
                 .build();
+    }
+    
+    // ============== Tests for POST /api/tasks/{taskId}/reassign ==============
+    
+    @Test
+    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
+    void testReassignTaskAsDispatcher() throws Exception {
+        Long taskId = 1L;
+        Long previousTechnicianId = 100L;
+        Long newTechnicianId = 101L;
+        String reason = "Technician unavailable";
+        
+        ReassignTaskRequest request = ReassignTaskRequest.builder()
+                .newTechnicianId(newTechnicianId)
+                .reason(reason)
+                .build();
+        
+        ReassignTaskResponse response = ReassignTaskResponse.builder()
+                .assignmentId(2L)
+                .taskId(taskId)
+                .previousTechnicianId(previousTechnicianId)
+                .newTechnicianId(newTechnicianId)
+                .reassignedAt(LocalDateTime.now())
+                .reassignedBy("dispatcher@fsm.com")
+                .reason(reason)
+                .taskStatus(TaskStatus.ASSIGNED)
+                .newTechnicianWorkload(3)
+                .assignmentHistory(Collections.emptyList())
+                .build();
+        
+        when(taskService.reassignTask(eq(taskId), any(ReassignTaskRequest.class), eq("dispatcher@fsm.com")))
+                .thenReturn(response);
+        
+        mockMvc.perform(post("/api/tasks/{taskId}/reassign", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.assignmentId").value(2))
+                .andExpect(jsonPath("$.taskId").value(taskId))
+                .andExpect(jsonPath("$.previousTechnicianId").value(previousTechnicianId))
+                .andExpect(jsonPath("$.newTechnicianId").value(newTechnicianId))
+                .andExpect(jsonPath("$.reassignedBy").value("dispatcher@fsm.com"))
+                .andExpect(jsonPath("$.reason").value(reason))
+                .andExpect(jsonPath("$.taskStatus").value("ASSIGNED"))
+                .andExpect(jsonPath("$.newTechnicianWorkload").value(3));
+        
+        verify(taskService).reassignTask(eq(taskId), any(ReassignTaskRequest.class), eq("dispatcher@fsm.com"));
+    }
+    
+    @Test
+    @WithMockUser(username = "admin@fsm.com", roles = {"ADMIN"})
+    void testReassignTaskAsAdmin() throws Exception {
+        Long taskId = 1L;
+        Long newTechnicianId = 101L;
+        
+        ReassignTaskRequest request = ReassignTaskRequest.builder()
+                .newTechnicianId(newTechnicianId)
+                .build();
+        
+        ReassignTaskResponse response = ReassignTaskResponse.builder()
+                .assignmentId(2L)
+                .taskId(taskId)
+                .previousTechnicianId(100L)
+                .newTechnicianId(newTechnicianId)
+                .reassignedAt(LocalDateTime.now())
+                .reassignedBy("admin@fsm.com")
+                .taskStatus(TaskStatus.ASSIGNED)
+                .newTechnicianWorkload(2)
+                .assignmentHistory(Collections.emptyList())
+                .build();
+        
+        when(taskService.reassignTask(eq(taskId), any(ReassignTaskRequest.class), eq("admin@fsm.com")))
+                .thenReturn(response);
+        
+        mockMvc.perform(post("/api/tasks/{taskId}/reassign", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.reassignedBy").value("admin@fsm.com"));
+    }
+    
+    @Test
+    void testReassignTaskUnauthenticated() throws Exception {
+        Long taskId = 1L;
+        ReassignTaskRequest request = ReassignTaskRequest.builder()
+                .newTechnicianId(101L)
+                .build();
+        
+        mockMvc.perform(post("/api/tasks/{taskId}/reassign", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnauthorized());
+        
+        verify(taskService, never()).reassignTask(any(), any(), any());
+    }
+    
+    @Test
+    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
+    void testReassignTaskWithNullNewTechnicianId() throws Exception {
+        Long taskId = 1L;
+        ReassignTaskRequest request = ReassignTaskRequest.builder()
+                .newTechnicianId(null)
+                .build();
+        
+        mockMvc.perform(post("/api/tasks/{taskId}/reassign", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+        
+        verify(taskService, never()).reassignTask(any(), any(), any());
+    }
+    
+    @Test
+    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
+    void testReassignTaskNotFound() throws Exception {
+        Long taskId = 999L;
+        ReassignTaskRequest request = ReassignTaskRequest.builder()
+                .newTechnicianId(101L)
+                .build();
+        
+        when(taskService.reassignTask(eq(taskId), any(ReassignTaskRequest.class), any()))
+                .thenThrow(new TaskNotFoundException(taskId));
+        
+        mockMvc.perform(post("/api/tasks/{taskId}/reassign", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound());
+    }
+    
+    @Test
+    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
+    void testReassignCompletedTaskReturnsBadRequest() throws Exception {
+        Long taskId = 1L;
+        ReassignTaskRequest request = ReassignTaskRequest.builder()
+                .newTechnicianId(101L)
+                .build();
+        
+        when(taskService.reassignTask(eq(taskId), any(ReassignTaskRequest.class), any()))
+                .thenThrow(new InvalidAssignmentException("Task cannot be reassigned. Current status: COMPLETED."));
+        
+        mockMvc.perform(post("/api/tasks/{taskId}/reassign", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+    
+    @Test
+    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
+    void testReassignInProgressTaskWithoutReasonReturnsBadRequest() throws Exception {
+        Long taskId = 1L;
+        ReassignTaskRequest request = ReassignTaskRequest.builder()
+                .newTechnicianId(101L)
+                .reason(null)
+                .build();
+        
+        when(taskService.reassignTask(eq(taskId), any(ReassignTaskRequest.class), any()))
+                .thenThrow(new InvalidAssignmentException("Task is IN_PROGRESS. A reason is required."));
+        
+        mockMvc.perform(post("/api/tasks/{taskId}/reassign", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+    
+    @Test
+    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
+    void testReassignTaskWithWorkloadWarning() throws Exception {
+        Long taskId = 1L;
+        Long newTechnicianId = 101L;
+        
+        ReassignTaskRequest request = ReassignTaskRequest.builder()
+                .newTechnicianId(newTechnicianId)
+                .build();
+        
+        ReassignTaskResponse response = ReassignTaskResponse.builder()
+                .assignmentId(2L)
+                .taskId(taskId)
+                .previousTechnicianId(100L)
+                .newTechnicianId(newTechnicianId)
+                .reassignedAt(LocalDateTime.now())
+                .reassignedBy("dispatcher@fsm.com")
+                .taskStatus(TaskStatus.ASSIGNED)
+                .newTechnicianWorkload(15)
+                .workloadWarning("Warning: New technician has 15 active tasks, which exceeds the recommended threshold of 10")
+                .assignmentHistory(Collections.emptyList())
+                .build();
+        
+        when(taskService.reassignTask(eq(taskId), any(ReassignTaskRequest.class), eq("dispatcher@fsm.com")))
+                .thenReturn(response);
+        
+        mockMvc.perform(post("/api/tasks/{taskId}/reassign", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.newTechnicianWorkload").value(15))
+                .andExpect(jsonPath("$.workloadWarning").exists());
+    }
+    
+    @Test
+    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
+    void testReassignTaskWithAssignmentHistory() throws Exception {
+        Long taskId = 1L;
+        Long newTechnicianId = 101L;
+        
+        ReassignTaskRequest request = ReassignTaskRequest.builder()
+                .newTechnicianId(newTechnicianId)
+                .build();
+        
+        ReassignTaskResponse.AssignmentHistoryDto historyEntry = ReassignTaskResponse.AssignmentHistoryDto.builder()
+                .id(1L)
+                .technicianId(100L)
+                .action("CREATED")
+                .actionBy("dispatcher@fsm.com")
+                .actionAt(LocalDateTime.now().minusDays(1))
+                .build();
+        
+        ReassignTaskResponse response = ReassignTaskResponse.builder()
+                .assignmentId(2L)
+                .taskId(taskId)
+                .previousTechnicianId(100L)
+                .newTechnicianId(newTechnicianId)
+                .reassignedAt(LocalDateTime.now())
+                .reassignedBy("dispatcher@fsm.com")
+                .taskStatus(TaskStatus.ASSIGNED)
+                .newTechnicianWorkload(3)
+                .assignmentHistory(Collections.singletonList(historyEntry))
+                .build();
+        
+        when(taskService.reassignTask(eq(taskId), any(ReassignTaskRequest.class), eq("dispatcher@fsm.com")))
+                .thenReturn(response);
+        
+        mockMvc.perform(post("/api/tasks/{taskId}/reassign", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.assignmentHistory").isArray())
+                .andExpect(jsonPath("$.assignmentHistory[0].action").value("CREATED"))
+                .andExpect(jsonPath("$.assignmentHistory[0].technicianId").value(100));
     }
 }
