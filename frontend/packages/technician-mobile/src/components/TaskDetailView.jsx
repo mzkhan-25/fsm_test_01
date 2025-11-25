@@ -27,6 +27,21 @@ const TaskDetailView = ({ taskId, onBack, onStatusUpdate }) => {
     fetchTask();
   }, [fetchTask]);
 
+  // Auto-dismiss success message after 5 seconds
+  useEffect(() => {
+    if (successMessage) {
+      const timer = setTimeout(() => {
+        setSuccessMessage(null);
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [successMessage]);
+
+  const clearMessages = () => {
+    setError(null);
+    setSuccessMessage(null);
+  };
+
   const handleStartNavigation = () => {
     const address = task.clientAddress || task.address;
     if (address) {
@@ -37,8 +52,7 @@ const TaskDetailView = ({ taskId, onBack, onStatusUpdate }) => {
 
   const handleMarkInProgress = async () => {
     setIsUpdating(true);
-    setError(null);
-    setSuccessMessage(null);
+    clearMessages();
     try {
       await updateTaskStatus(taskId, 'IN_PROGRESS');
       setTask({ ...task, status: 'IN_PROGRESS' });
@@ -55,8 +69,7 @@ const TaskDetailView = ({ taskId, onBack, onStatusUpdate }) => {
 
   const handleMarkCompleted = async () => {
     setIsUpdating(true);
-    setError(null);
-    setSuccessMessage(null);
+    clearMessages();
     try {
       await updateTaskStatus(taskId, 'COMPLETED');
       setTask({ ...task, status: 'COMPLETED' });
