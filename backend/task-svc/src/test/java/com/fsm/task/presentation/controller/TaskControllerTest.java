@@ -541,13 +541,16 @@ class TaskControllerTest {
     }
     
     // Helper methods
-    private TaskListResponse createEmptyTaskListResponse() {
+    private Map<String, Long> createDefaultStatusCounts() {
         Map<String, Long> statusCounts = new HashMap<>();
         statusCounts.put("UNASSIGNED", 0L);
         statusCounts.put("ASSIGNED", 0L);
         statusCounts.put("IN_PROGRESS", 0L);
         statusCounts.put("COMPLETED", 0L);
-        
+        return statusCounts;
+    }
+    
+    private TaskListResponse createEmptyTaskListResponse() {
         return TaskListResponse.builder()
                 .tasks(Collections.emptyList())
                 .page(0)
@@ -556,17 +559,11 @@ class TaskControllerTest {
                 .totalPages(0)
                 .first(true)
                 .last(true)
-                .statusCounts(statusCounts)
+                .statusCounts(createDefaultStatusCounts())
                 .build();
     }
     
     private TaskListResponse createTaskListResponse(int page, int pageSize) {
-        Map<String, Long> statusCounts = new HashMap<>();
-        statusCounts.put("UNASSIGNED", 0L);
-        statusCounts.put("ASSIGNED", 0L);
-        statusCounts.put("IN_PROGRESS", 0L);
-        statusCounts.put("COMPLETED", 0L);
-        
         return TaskListResponse.builder()
                 .tasks(Collections.emptyList())
                 .page(page)
@@ -575,7 +572,7 @@ class TaskControllerTest {
                 .totalPages(0)
                 .first(page == 0)
                 .last(true)
-                .statusCounts(statusCounts)
+                .statusCounts(createDefaultStatusCounts())
                 .build();
     }
 }
