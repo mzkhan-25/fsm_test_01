@@ -9,6 +9,7 @@ CREATE TABLE technician_locations (
     accuracy DOUBLE NOT NULL,
     timestamp TIMESTAMP NOT NULL,
     battery_level INT,
+    location GEOMETRY,
     created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 

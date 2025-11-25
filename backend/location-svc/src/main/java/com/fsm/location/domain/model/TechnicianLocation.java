@@ -3,6 +3,10 @@ package com.fsm.location.domain.model;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.*;
 import lombok.*;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.GeometryFactory;
+import org.locationtech.jts.geom.Point;
+import org.locationtech.jts.geom.PrecisionModel;
 
 import java.time.LocalDateTime;
 
@@ -28,6 +32,10 @@ import java.time.LocalDateTime;
 @Builder
 public class TechnicianLocation {
     
+    // GeometryFactory with SRID 4326 (WGS84) for creating Point objects
+    private static final GeometryFactory GEOMETRY_FACTORY = 
+        new GeometryFactory(new PrecisionModel(), 4326);
+    
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -39,13 +47,13 @@ public class TechnicianLocation {
     @NotNull(message = "Latitude is required")
     @DecimalMin(value = "-90.0", message = "Latitude must be at least -90")
     @DecimalMax(value = "90.0", message = "Latitude must be at most 90")
-    @Column(nullable = false, precision = 10, scale = 7)
+    @Column(nullable = false)
     private Double latitude;
     
     @NotNull(message = "Longitude is required")
     @DecimalMin(value = "-180.0", message = "Longitude must be at least -180")
     @DecimalMax(value = "180.0", message = "Longitude must be at most 180")
-    @Column(nullable = false, precision = 10, scale = 7)
+    @Column(nullable = false)
     private Double longitude;
     
     @NotNull(message = "Accuracy is required")
@@ -63,6 +71,14 @@ public class TechnicianLocation {
     @Column(name = "battery_level")
     private Integer batteryLevel;
     
+    /**
+     * PostGIS Point geometry for geospatial queries.
+     * Uses SRID 4326 (WGS84) coordinate system.
+     * This enables efficient spatial queries like finding technicians within a radius.
+     */
+    @Column(name = "location", columnDefinition = "geography(Point, 4326)")
+    private Point location;
+    
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
     
@@ -71,6 +87,59 @@ public class TechnicianLocation {
         createdAt = LocalDateTime.now();
         if (timestamp == null) {
             timestamp = LocalDateTime.now();
+        }
+        // Automatically create Point from latitude and longitude if not set
+        if (location == null && latitude != null && longitude != null) {
+            location = createPoint(longitude, latitude);
+        }
+    }
+    
+    /**
+     * Updates the location Point when latitude or longitude changes.
+     * This ensures the geospatial field is always in sync with lat/lon fields.
+     */
+    @PreUpdate
+    protected void onUpdate() {
+        if (latitude != null && longitude != null) {
+            location = createPoint(longitude, latitude);
+        }
+    }
+    
+    /**
+     * Creates a Point geometry from longitude and latitude.
+     * Note: JTS uses (longitude, latitude) order, not (latitude, longitude).
+     * 
+     * @param longitude the longitude value
+     * @param latitude the latitude value
+     * @return a Point geometry with SRID 4326
+     */
+    private Point createPoint(Double longitude, Double latitude) {
+        return GEOMETRY_FACTORY.createPoint(new Coordinate(longitude, latitude));
+    }
+    
+    /**
+     * Sets both latitude and the corresponding location Point.
+     * This ensures consistency between the fields.
+     * 
+     * @param latitude the latitude value
+     */
+    public void setLatitude(Double latitude) {
+        this.latitude = latitude;
+        if (this.longitude != null && latitude != null) {
+            this.location = createPoint(this.longitude, latitude);
+        }
+    }
+    
+    /**
+     * Sets both longitude and the corresponding location Point.
+     * This ensures consistency between the fields.
+     * 
+     * @param longitude the longitude value
+     */
+    public void setLongitude(Double longitude) {
+        this.longitude = longitude;
+        if (this.latitude != null && longitude != null) {
+            this.location = createPoint(longitude, this.latitude);
         }
     }
     

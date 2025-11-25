@@ -1,6 +1,7 @@
 package com.fsm.location.domain.repository;
 
 import com.fsm.location.domain.model.TechnicianLocation;
+import org.locationtech.jts.geom.Point;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -87,6 +88,66 @@ public interface LocationRepository extends JpaRepository<TechnicianLocation, Lo
      * @return true if the technician has at least one location record
      */
     boolean existsByTechnicianId(Long technicianId);
+    
+    /**
+     * Find all technicians within a specified radius (in meters) of a given point.
+     * Uses PostGIS ST_DWithin function for efficient geospatial queries.
+     * This is a key query for technician assignment based on proximity.
+     * 
+     * Note: For geography type, ST_DWithin distance is in meters by default.
+     * 
+     * @param point the center point to search from (longitude, latitude)
+     * @param radiusMeters the search radius in meters
+     * @return list of technician locations within the radius, ordered by distance (closest first)
+     */
+    @Query(value = "SELECT tl.* FROM technician_locations tl " +
+           "WHERE tl.location IS NOT NULL " +
+           "AND ST_DWithin(tl.location, CAST(:point AS geography), :radiusMeters) " +
+           "AND tl.timestamp = (SELECT MAX(tl2.timestamp) FROM technician_locations tl2 " +
+           "                    WHERE tl2.technician_id = tl.technician_id) " +
+           "ORDER BY ST_Distance(tl.location, CAST(:point AS geography))",
+           nativeQuery = true)
+    List<TechnicianLocation> findTechniciansWithinRadius(
+            @Param("point") Point point,
+            @Param("radiusMeters") double radiusMeters);
+    
+    /**
+     * Find all technicians within a specified radius of a given point,
+     * filtering by recent activity (locations within a time threshold).
+     * This ensures we only consider currently active technicians.
+     * 
+     * @param point the center point to search from (longitude, latitude)
+     * @param radiusMeters the search radius in meters
+     * @param since the timestamp threshold for recent activity
+     * @return list of active technician locations within the radius, ordered by distance
+     */
+    @Query(value = "SELECT tl.* FROM technician_locations tl " +
+           "WHERE tl.location IS NOT NULL " +
+           "AND tl.timestamp >= :since " +
+           "AND ST_DWithin(tl.location, CAST(:point AS geography), :radiusMeters) " +
+           "AND tl.timestamp = (SELECT MAX(tl2.timestamp) FROM technician_locations tl2 " +
+           "                    WHERE tl2.technician_id = tl.technician_id) " +
+           "ORDER BY ST_Distance(tl.location, CAST(:point AS geography))",
+           nativeQuery = true)
+    List<TechnicianLocation> findActiveTechniciansWithinRadius(
+            @Param("point") Point point,
+            @Param("radiusMeters") double radiusMeters,
+            @Param("since") LocalDateTime since);
+    
+    /**
+     * Get the last known position for each active technician.
+     * Active is defined as having a location update within the specified time threshold.
+     * Returns only the most recent location for each technician.
+     * 
+     * @param since the timestamp threshold for active status
+     * @return list of the latest locations for all active technicians
+     */
+    @Query("SELECT tl FROM TechnicianLocation tl " +
+           "WHERE tl.timestamp >= :since " +
+           "AND tl.timestamp = (SELECT MAX(tl2.timestamp) FROM TechnicianLocation tl2 " +
+           "                    WHERE tl2.technicianId = tl.technicianId)")
+    List<TechnicianLocation> findLastKnownPositionsForActiveTechnicians(
+            @Param("since") LocalDateTime since);
     
     /**
      * Convenience method to get the latest location for a technician.
