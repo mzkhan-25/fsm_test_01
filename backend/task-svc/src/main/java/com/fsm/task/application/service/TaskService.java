@@ -286,16 +286,19 @@ public class TaskService {
         }
         
         // Filter out completed tasks from previous days
-        // Note: Since we don't have a completedAt field, we use createdAt as a proxy
-        // In a production system, you would add a completedAt field to track actual completion time
+        // LIMITATION NOTE: Since the domain model doesn't have a 'completedAt' field,
+        // we use the task's createdAt as a heuristic. This means:
+        // - Completed tasks created today will be shown (assumes same-day completion)
+        // - Completed tasks created before today will be hidden
+        // TODO: Add 'completedAt' field to ServiceTask entity for accurate completion tracking
         LocalDate today = LocalDate.now();
         tasks = tasks.stream()
                 .filter(task -> {
                     if (task.getStatus() == TaskStatus.COMPLETED) {
-                        // Use task's createdAt as a proxy for when it was worked on
-                        // Completed tasks from previous days should not be shown
-                        LocalDate taskDate = task.getCreatedAt().toLocalDate();
-                        return !taskDate.isBefore(today);
+                        // Show completed tasks only if they were created today
+                        // This is a heuristic since we don't have completedAt field
+                        LocalDate taskCreatedDate = task.getCreatedAt().toLocalDate();
+                        return !taskCreatedDate.isBefore(today);
                     }
                     return true;
                 })

@@ -129,10 +129,13 @@ public class TechnicianController {
         }
         
         // Fallback: Use a deterministic ID based on username
-        // This ensures the same username always maps to the same ID
-        // Note: This is for development/testing only
+        // WARNING: This is for DEVELOPMENT/TESTING ONLY!
+        // Hash collisions could allow unauthorized access to another user's tasks.
+        // TODO: In production, remove this fallback and require proper JWT token claims
+        // with the technician ID. Throw an exception if technician ID cannot be determined.
         long hashBasedId = Math.abs((long) username.hashCode());
-        log.debug("Using hash-based technician ID {} for username: {}", hashBasedId, username);
+        log.warn("Using hash-based technician ID {} for username: {}. This is for development only!", 
+                hashBasedId, username);
         return hashBasedId;
     }
 }
