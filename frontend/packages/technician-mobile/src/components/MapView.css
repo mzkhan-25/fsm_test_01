@@ -1,0 +1,69 @@
+.map-view {
+  height: calc(100vh - 60px);
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 60px;
+}
+
+.map-header {
+  padding: 16px;
+  background-color: white;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.map-title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 600;
+  color: #333;
+}
+
+.map-container {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #e9ecef;
+  position: relative;
+}
+
+.map-placeholder {
+  text-align: center;
+  color: #666;
+  padding: 20px;
+}
+
+.map-placeholder-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+}
+
+.map-placeholder-text {
+  font-size: 18px;
+  margin: 0;
+}
+
+.map-placeholder-subtext {
+  font-size: 14px;
+  color: #999;
+  margin-top: 8px;
+}
+
+.location-status {
+  position: absolute;
+  bottom: 16px;
+  left: 16px;
+  background-color: white;
+  padding: 8px 12px;
+  border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  font-size: 12px;
+}
+
+.location-status.active {
+  color: #155724;
+}
+
+.location-status.inactive {
+  color: #856404;
+}
