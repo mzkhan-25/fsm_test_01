@@ -317,14 +317,3 @@ export const getTrackingStatus = () => {
     lastUpdateTime,
   };
 };
-
-/**
- * Configure tracking interval (for testing purposes)
- */
-export const setTrackingInterval = () => {
-  if (isTracking) {
-    throw new Error('Cannot change interval while tracking is active');
-  }
-  // This function is primarily for testing
-  // In production, use LOCATION_UPDATE_INTERVAL constant
-};

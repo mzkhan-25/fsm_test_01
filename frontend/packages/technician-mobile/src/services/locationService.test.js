@@ -395,20 +395,16 @@ describe('locationService', () => {
     });
 
     it('should pause tracking if battery is too low', async () => {
-      // Set low battery first
-      mockBattery.level = 0.1; // 10%
-      mockNotification.permission = 'granted';
-
-      // Need to set battery back to high for startLocationTracking to succeed
-      mockBattery.level = 0.5;
+      mockBattery.level = 0.5; // Start with good battery
       
       // Start tracking first
       await startLocationTracking();
       
       // Now set battery low for the next update
-      mockBattery.level = 0.1;
+      mockBattery.level = 0.1; // 10% - below threshold
+      mockNotification.permission = 'granted';
       
-      // Now try to perform update with low battery
+      // Try to perform update with low battery
       await expect(performLocationUpdate()).rejects.toThrow('Battery level too low');
 
       const status = getTrackingStatus();

@@ -235,12 +235,12 @@ describe('ProfileView', () => {
         email: 'john@example.com',
         role: 'TECHNICIAN',
       });
-      // Use real timers for these tests to avoid timeout issues
+      // Use real timers for these tests to avoid complexity with async operations
       vi.useRealTimers();
     });
 
     afterEach(() => {
-      // Restore fake timers after each test
+      // Restore fake timers for other tests
       vi.useFakeTimers();
     });
 
@@ -408,7 +408,7 @@ describe('ProfileView', () => {
     });
 
     it('should update tracking status periodically', () => {
-      // Use fake timers for this specific test
+      // Use fake timers for this specific test to control time
       vi.useFakeTimers();
       
       locationService.getTrackingStatus.mockReturnValue({
@@ -422,8 +422,8 @@ describe('ProfileView', () => {
       // Clear the calls made during mount
       const initialCalls = locationService.getTrackingStatus.mock.calls.length;
 
-      // Advance timers by 2 seconds (polling interval)
-      vi.advanceTimersByTime(2000);
+      // Advance timers by 5 seconds (polling interval)
+      vi.advanceTimersByTime(5000);
 
       // Should have called at least once more
       expect(locationService.getTrackingStatus.mock.calls.length).toBeGreaterThan(initialCalls);

@@ -19,10 +19,10 @@ const ProfileView = ({ onLogout }) => {
     // Update status on mount
     setLocationStatus(getTrackingStatus());
 
-    // Poll for status updates every 2 seconds to show current state
+    // Poll for status updates every 5 seconds to show current state
     const intervalId = setInterval(() => {
       setLocationStatus(getTrackingStatus());
-    }, 2000);
+    }, 5000);
 
     return () => clearInterval(intervalId);
   }, []);
