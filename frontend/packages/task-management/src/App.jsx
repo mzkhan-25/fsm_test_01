@@ -1,20 +1,34 @@
+import { useState } from 'react'
 import './App.css'
 import TaskCreationForm from './components/TaskCreationForm'
+import TaskListView from './components/TaskListView'
 
 function App() {
+  const [view, setView] = useState('list');
+
+  const handleCreateTask = () => {
+    setView('create');
+  };
+
   const handleSuccess = () => {
-    // In a real app, this would navigate to task list
-    console.log('Task created successfully, would redirect to task list');
+    // Navigate back to task list after creating a task
+    setView('list');
   };
 
   const handleCancel = () => {
-    // In a real app, this would navigate back
-    console.log('Task creation cancelled');
+    // Navigate back to task list on cancel
+    setView('list');
   };
 
+  if (view === 'create') {
+    return (
+      <TaskCreationForm onSuccess={handleSuccess} onCancel={handleCancel} />
+    );
+  }
+
   return (
-    <TaskCreationForm onSuccess={handleSuccess} onCancel={handleCancel} />
-  )
+    <TaskListView onCreateTask={handleCreateTask} />
+  );
 }
 
 export default App
