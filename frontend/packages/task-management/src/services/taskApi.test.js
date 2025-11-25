@@ -14,6 +14,180 @@ describe('taskApi', () => {
     vi.clearAllMocks();
   });
 
+  describe('getTasks', () => {
+    const mockTaskListResponse = {
+      tasks: [
+        {
+          id: 1,
+          title: 'Test Task',
+          clientAddress: '123 Main St',
+          priority: 'HIGH',
+          status: 'UNASSIGNED',
+          createdAt: '2024-01-01T00:00:00Z',
+        },
+      ],
+      page: 0,
+      pageSize: 10,
+      totalElements: 1,
+      totalPages: 1,
+      first: true,
+      last: true,
+      statusCounts: {
+        UNASSIGNED: 1,
+        ASSIGNED: 0,
+        IN_PROGRESS: 0,
+        COMPLETED: 0,
+      },
+    };
+
+    it('fetches tasks without parameters', async () => {
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockTaskListResponse,
+      });
+
+      const result = await getTasks();
+
+      expect(result).toEqual(mockTaskListResponse);
+      expect(fetch).toHaveBeenCalledWith(
+        'http://localhost:8081/api/tasks',
+        {
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+    });
+
+    it('fetches tasks with all parameters', async () => {
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockTaskListResponse,
+      });
+
+      await getTasks({
+        status: 'UNASSIGNED',
+        priority: 'HIGH',
+        search: 'HVAC',
+        sortBy: 'priority',
+        sortOrder: 'desc',
+        page: 0,
+        pageSize: 10,
+      });
+
+      expect(fetch).toHaveBeenCalledWith(
+        'http://localhost:8081/api/tasks?status=UNASSIGNED&priority=HIGH&search=HVAC&sortBy=priority&sortOrder=desc&page=0&pageSize=10',
+        expect.objectContaining({
+          method: 'GET',
+        })
+      );
+    });
+
+    it('includes auth token in headers when available', async () => {
+      localStorage.setItem('token', 'test-token-789');
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockTaskListResponse,
+      });
+
+      await getTasks();
+
+      expect(fetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer test-token-789',
+          },
+        })
+      );
+    });
+
+    it('only includes provided parameters in URL', async () => {
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockTaskListResponse,
+      });
+
+      await getTasks({
+        status: 'ASSIGNED',
+        page: 2,
+      });
+
+      expect(fetch).toHaveBeenCalledWith(
+        'http://localhost:8081/api/tasks?status=ASSIGNED&page=2',
+        expect.any(Object)
+      );
+    });
+
+    it('throws error when API returns error response', async () => {
+      fetch.mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({ message: 'Unauthorized' }),
+      });
+
+      await expect(getTasks()).rejects.toThrow('Unauthorized');
+    });
+
+    it('throws default error message when API error has no message', async () => {
+      fetch.mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({}),
+      });
+
+      await expect(getTasks()).rejects.toThrow('Failed to fetch tasks');
+    });
+
+    it('handles network errors', async () => {
+      fetch.mockRejectedValueOnce(new Error('Network error'));
+
+      await expect(getTasks()).rejects.toThrow('Network error');
+    });
+
+    it('properly encodes special characters in search', async () => {
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockTaskListResponse,
+      });
+
+      await getTasks({ search: 'HVAC & AC' });
+
+      expect(fetch).toHaveBeenCalledWith(
+        expect.stringContaining('search=HVAC+%26+AC'),
+        expect.any(Object)
+      );
+    });
+
+    it('handles page 0 correctly', async () => {
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockTaskListResponse,
+      });
+
+      await getTasks({ page: 0 });
+
+      expect(fetch).toHaveBeenCalledWith(
+        'http://localhost:8081/api/tasks?page=0',
+        expect.any(Object)
+      );
+    });
+
+    it('handles pageSize 0 correctly', async () => {
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockTaskListResponse,
+      });
+
+      await getTasks({ pageSize: 0 });
+
+      expect(fetch).toHaveBeenCalledWith(
+        'http://localhost:8081/api/tasks?pageSize=0',
+        expect.any(Object)
+      );
+    });
+  });
+
   describe('createTask', () => {
     const mockTaskData = {
       title: 'Test Task',
