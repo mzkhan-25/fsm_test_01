@@ -114,11 +114,15 @@ public class ServiceTask {
     /**
      * Reassigns the task to a different technician.
      * Only tasks with status ASSIGNED or IN_PROGRESS can be reassigned.
+     * When an IN_PROGRESS task is reassigned, it returns to ASSIGNED status
+     * since the new technician hasn't started work on it yet.
      * @param technicianId The ID of the new technician
      */
     public void reassignToTechnician(Long technicianId) {
         if (this.status == TaskStatus.ASSIGNED || this.status == TaskStatus.IN_PROGRESS) {
             this.assignedTechnicianId = technicianId;
+            // When reassigning, the task should be in ASSIGNED status for the new technician
+            this.status = TaskStatus.ASSIGNED;
         }
     }
     
