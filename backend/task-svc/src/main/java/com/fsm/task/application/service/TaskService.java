@@ -11,6 +11,7 @@ import com.fsm.task.domain.model.Assignment.AssignmentStatus;
 import com.fsm.task.domain.model.ServiceTask;
 import com.fsm.task.domain.model.ServiceTask.Priority;
 import com.fsm.task.domain.model.ServiceTask.TaskStatus;
+import com.fsm.task.domain.repository.AssignmentRepository;
 import com.fsm.task.domain.repository.TaskRepository;
 import com.fsm.task.domain.repository.TaskSpecification;
 import lombok.RequiredArgsConstructor;
