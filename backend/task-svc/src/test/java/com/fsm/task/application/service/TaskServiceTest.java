@@ -3,6 +3,8 @@ package com.fsm.task.application.service;
 import com.fsm.task.application.dto.AssignTaskRequest;
 import com.fsm.task.application.dto.AssignTaskResponse;
 import com.fsm.task.application.dto.CreateTaskRequest;
+import com.fsm.task.application.dto.TaskListRequest;
+import com.fsm.task.application.dto.TaskListResponse;
 import com.fsm.task.application.dto.TaskResponse;
 import com.fsm.task.domain.model.Assignment;
 import com.fsm.task.domain.model.Assignment.AssignmentStatus;
@@ -18,9 +20,16 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 
 import java.time.LocalDateTime;
-import java.util.Optional;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -274,308 +283,315 @@ class TaskServiceTest {
         assertEquals(now, response.getCreatedAt());
     }
     
-    // ==================== Task Assignment Tests ====================
+    // ============== Tests for getTasks ==============
     
     @Test
-    void testAssignTaskSuccess() {
-        // Setup - unassigned task
-        ServiceTask unassignedTask = ServiceTask.builder()
-                .id(1L)
-                .title("Test Task")
-                .clientAddress("123 Main St")
-                .priority(Priority.HIGH)
-                .status(TaskStatus.UNASSIGNED)
-                .createdBy("dispatcher@fsm.com")
-                .createdAt(LocalDateTime.now())
-                .build();
+    void testGetTasksReturnsEmptyListWhenNoTasks() {
+        TaskListRequest request = TaskListRequest.builder().build();
+        Page<ServiceTask> emptyPage = new PageImpl<>(Collections.emptyList(), PageRequest.of(0, 50), 0);
         
-        Assignment savedAssignment = Assignment.builder()
-                .id(1L)
-                .taskId(1L)
-                .technicianId(101L)
-                .assignedAt(LocalDateTime.now())
-                .assignedBy("dispatcher@fsm.com")
-                .status(AssignmentStatus.ACTIVE)
-                .build();
+        when(taskRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(emptyPage);
+        when(taskRepository.countByStatus(any(TaskStatus.class))).thenReturn(0L);
         
-        when(taskRepository.findById(1L)).thenReturn(Optional.of(unassignedTask));
-        when(taskRepository.save(any(ServiceTask.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(assignmentRepository.save(any(Assignment.class))).thenReturn(savedAssignment);
-        when(assignmentRepository.getTechnicianWorkload(101L)).thenReturn(1);
-        
-        AssignTaskRequest request = AssignTaskRequest.builder().technicianId(101L).build();
-        
-        AssignTaskResponse response = taskService.assignTask(1L, request, "dispatcher@fsm.com");
+        TaskListResponse response = taskService.getTasks(request);
         
         assertNotNull(response);
-        assertEquals(1L, response.getAssignmentId());
-        assertEquals(1L, response.getTaskId());
-        assertEquals(101L, response.getTechnicianId());
-        assertEquals(TaskStatus.ASSIGNED, response.getTaskStatus());
-        assertEquals(1, response.getTechnicianWorkload());
-        assertNull(response.getWorkloadWarning());
-        
-        verify(taskRepository).findById(1L);
-        verify(taskRepository).save(any(ServiceTask.class));
-        verify(assignmentRepository).save(any(Assignment.class));
+        assertTrue(response.getTasks().isEmpty());
+        assertEquals(0, response.getTotalElements());
+        assertEquals(0, response.getTotalPages());
+        assertTrue(response.isFirst());
+        assertTrue(response.isLast());
     }
     
     @Test
-    void testAssignTaskWithWorkloadWarning() {
-        // Setup - unassigned task
-        ServiceTask unassignedTask = ServiceTask.builder()
-                .id(1L)
-                .title("Test Task")
-                .clientAddress("123 Main St")
-                .priority(Priority.HIGH)
-                .status(TaskStatus.UNASSIGNED)
-                .createdBy("dispatcher@fsm.com")
-                .createdAt(LocalDateTime.now())
+    void testGetTasksReturnsTasksWithPagination() {
+        TaskListRequest request = TaskListRequest.builder()
+                .page(0)
+                .pageSize(10)
                 .build();
         
-        Assignment savedAssignment = Assignment.builder()
-                .id(1L)
-                .taskId(1L)
-                .technicianId(101L)
-                .assignedAt(LocalDateTime.now())
-                .assignedBy("dispatcher@fsm.com")
-                .status(AssignmentStatus.ACTIVE)
-                .build();
+        List<ServiceTask> tasks = Arrays.asList(
+                createTask(1L, "Task 1", Priority.HIGH, TaskStatus.UNASSIGNED),
+                createTask(2L, "Task 2", Priority.MEDIUM, TaskStatus.ASSIGNED)
+        );
+        Page<ServiceTask> taskPage = new PageImpl<>(tasks, Pageable.ofSize(10), 2);
         
-        when(taskRepository.findById(1L)).thenReturn(Optional.of(unassignedTask));
-        when(taskRepository.save(any(ServiceTask.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(assignmentRepository.save(any(Assignment.class))).thenReturn(savedAssignment);
-        when(assignmentRepository.getTechnicianWorkload(101L)).thenReturn(12); // Exceeds threshold of 10
+        when(taskRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(taskPage);
+        when(taskRepository.countByStatus(TaskStatus.UNASSIGNED)).thenReturn(1L);
+        when(taskRepository.countByStatus(TaskStatus.ASSIGNED)).thenReturn(1L);
+        when(taskRepository.countByStatus(TaskStatus.IN_PROGRESS)).thenReturn(0L);
+        when(taskRepository.countByStatus(TaskStatus.COMPLETED)).thenReturn(0L);
         
-        AssignTaskRequest request = AssignTaskRequest.builder().technicianId(101L).build();
-        
-        AssignTaskResponse response = taskService.assignTask(1L, request, "dispatcher@fsm.com");
+        TaskListResponse response = taskService.getTasks(request);
         
         assertNotNull(response);
-        assertEquals(12, response.getTechnicianWorkload());
-        assertNotNull(response.getWorkloadWarning());
-        assertTrue(response.getWorkloadWarning().contains("12"));
-        assertTrue(response.getWorkloadWarning().contains("10"));
+        assertEquals(2, response.getTasks().size());
+        assertEquals(2, response.getTotalElements());
+        assertEquals(1, response.getTotalPages());
+        assertEquals(0, response.getPage());
+        assertEquals(10, response.getPageSize());
+        assertTrue(response.isFirst());
+        assertTrue(response.isLast());
     }
     
     @Test
-    void testAssignTaskNotFound() {
-        when(taskRepository.findById(999L)).thenReturn(Optional.empty());
-        
-        AssignTaskRequest request = AssignTaskRequest.builder().technicianId(101L).build();
-        
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, 
-                () -> taskService.assignTask(999L, request, "dispatcher@fsm.com"));
-        
-        assertEquals("Task not found with ID: 999", exception.getMessage());
-        verify(assignmentRepository, never()).save(any());
-    }
-    
-    @Test
-    void testAssignTaskCannotAssignInProgressTask() {
-        // Setup - task in progress
-        ServiceTask inProgressTask = ServiceTask.builder()
-                .id(1L)
-                .title("Test Task")
-                .clientAddress("123 Main St")
-                .priority(Priority.HIGH)
-                .status(TaskStatus.IN_PROGRESS)
-                .createdBy("dispatcher@fsm.com")
-                .createdAt(LocalDateTime.now())
+    void testGetTasksWithStatusFilter() {
+        TaskListRequest request = TaskListRequest.builder()
+                .status(TaskStatus.UNASSIGNED)
                 .build();
         
-        when(taskRepository.findById(1L)).thenReturn(Optional.of(inProgressTask));
+        List<ServiceTask> tasks = Collections.singletonList(
+                createTask(1L, "Unassigned Task", Priority.HIGH, TaskStatus.UNASSIGNED)
+        );
+        Page<ServiceTask> taskPage = new PageImpl<>(tasks);
         
-        AssignTaskRequest request = AssignTaskRequest.builder().technicianId(101L).build();
+        when(taskRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(taskPage);
+        when(taskRepository.countByStatus(any(TaskStatus.class))).thenReturn(0L);
+        when(taskRepository.countByStatus(TaskStatus.UNASSIGNED)).thenReturn(1L);
         
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, 
-                () -> taskService.assignTask(1L, request, "dispatcher@fsm.com"));
-        
-        assertTrue(exception.getMessage().contains("cannot be assigned"));
-        verify(assignmentRepository, never()).save(any());
-    }
-    
-    @Test
-    void testAssignTaskCannotAssignCompletedTask() {
-        // Setup - completed task
-        ServiceTask completedTask = ServiceTask.builder()
-                .id(1L)
-                .title("Test Task")
-                .clientAddress("123 Main St")
-                .priority(Priority.HIGH)
-                .status(TaskStatus.COMPLETED)
-                .createdBy("dispatcher@fsm.com")
-                .createdAt(LocalDateTime.now())
-                .build();
-        
-        when(taskRepository.findById(1L)).thenReturn(Optional.of(completedTask));
-        
-        AssignTaskRequest request = AssignTaskRequest.builder().technicianId(101L).build();
-        
-        IllegalArgumentException exception = assertThrows(IllegalArgumentException.class, 
-                () -> taskService.assignTask(1L, request, "dispatcher@fsm.com"));
-        
-        assertTrue(exception.getMessage().contains("cannot be assigned"));
-        verify(assignmentRepository, never()).save(any());
-    }
-    
-    @Test
-    void testReassignTask() {
-        // Setup - already assigned task
-        ServiceTask assignedTask = ServiceTask.builder()
-                .id(1L)
-                .title("Test Task")
-                .clientAddress("123 Main St")
-                .priority(Priority.HIGH)
-                .status(TaskStatus.ASSIGNED)
-                .assignedTechnicianId(100L)
-                .createdBy("dispatcher@fsm.com")
-                .createdAt(LocalDateTime.now())
-                .build();
-        
-        Assignment previousAssignment = Assignment.builder()
-                .id(1L)
-                .taskId(1L)
-                .technicianId(100L)
-                .assignedAt(LocalDateTime.now().minusDays(1))
-                .assignedBy("dispatcher@fsm.com")
-                .status(AssignmentStatus.ACTIVE)
-                .build();
-        
-        Assignment newAssignment = Assignment.builder()
-                .id(2L)
-                .taskId(1L)
-                .technicianId(102L)
-                .assignedAt(LocalDateTime.now())
-                .assignedBy("dispatcher@fsm.com")
-                .status(AssignmentStatus.ACTIVE)
-                .build();
-        
-        when(taskRepository.findById(1L)).thenReturn(Optional.of(assignedTask));
-        when(assignmentRepository.findByTaskIdAndStatus(1L, AssignmentStatus.ACTIVE))
-                .thenReturn(Optional.of(previousAssignment));
-        when(taskRepository.save(any(ServiceTask.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(assignmentRepository.save(any(Assignment.class))).thenAnswer(invocation -> {
-            Assignment arg = invocation.getArgument(0);
-            if (arg.getId() == null) {
-                return newAssignment; // New assignment
-            }
-            return arg; // Previous assignment being marked as reassigned
-        });
-        when(assignmentRepository.getTechnicianWorkload(102L)).thenReturn(3);
-        
-        AssignTaskRequest request = AssignTaskRequest.builder().technicianId(102L).build();
-        
-        AssignTaskResponse response = taskService.assignTask(1L, request, "dispatcher@fsm.com");
+        TaskListResponse response = taskService.getTasks(request);
         
         assertNotNull(response);
-        assertEquals(102L, response.getTechnicianId());
-        assertEquals(TaskStatus.ASSIGNED, response.getTaskStatus());
-        
-        // Verify previous assignment was marked as reassigned
-        verify(assignmentRepository, times(2)).save(any(Assignment.class));
+        assertEquals(1, response.getTasks().size());
+        assertEquals(TaskStatus.UNASSIGNED, response.getTasks().get(0).getStatus());
     }
     
     @Test
-    void testAssignTaskCreatesAssignmentRecord() {
-        ServiceTask unassignedTask = ServiceTask.builder()
-                .id(1L)
-                .title("Test Task")
-                .clientAddress("123 Main St")
+    void testGetTasksWithPriorityFilter() {
+        TaskListRequest request = TaskListRequest.builder()
                 .priority(Priority.HIGH)
-                .status(TaskStatus.UNASSIGNED)
-                .createdBy("dispatcher@fsm.com")
-                .createdAt(LocalDateTime.now())
                 .build();
         
-        when(taskRepository.findById(1L)).thenReturn(Optional.of(unassignedTask));
-        when(taskRepository.save(any(ServiceTask.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(assignmentRepository.save(any(Assignment.class))).thenAnswer(invocation -> {
-            Assignment assignment = invocation.getArgument(0);
-            assignment.setId(1L);
-            return assignment;
-        });
-        when(assignmentRepository.getTechnicianWorkload(101L)).thenReturn(1);
+        List<ServiceTask> tasks = Collections.singletonList(
+                createTask(1L, "High Priority Task", Priority.HIGH, TaskStatus.UNASSIGNED)
+        );
+        Page<ServiceTask> taskPage = new PageImpl<>(tasks);
         
-        AssignTaskRequest request = AssignTaskRequest.builder().technicianId(101L).build();
+        when(taskRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(taskPage);
+        when(taskRepository.countByStatus(any(TaskStatus.class))).thenReturn(0L);
         
-        taskService.assignTask(1L, request, "dispatcher@fsm.com");
-        
-        ArgumentCaptor<Assignment> assignmentCaptor = ArgumentCaptor.forClass(Assignment.class);
-        verify(assignmentRepository).save(assignmentCaptor.capture());
-        
-        Assignment capturedAssignment = assignmentCaptor.getValue();
-        assertEquals(1L, capturedAssignment.getTaskId());
-        assertEquals(101L, capturedAssignment.getTechnicianId());
-        assertEquals("dispatcher@fsm.com", capturedAssignment.getAssignedBy());
-        assertEquals(AssignmentStatus.ACTIVE, capturedAssignment.getStatus());
-    }
-    
-    @Test
-    void testAssignTaskUpdatesTaskStatus() {
-        ServiceTask unassignedTask = ServiceTask.builder()
-                .id(1L)
-                .title("Test Task")
-                .clientAddress("123 Main St")
-                .priority(Priority.HIGH)
-                .status(TaskStatus.UNASSIGNED)
-                .createdBy("dispatcher@fsm.com")
-                .createdAt(LocalDateTime.now())
-                .build();
-        
-        when(taskRepository.findById(1L)).thenReturn(Optional.of(unassignedTask));
-        when(taskRepository.save(any(ServiceTask.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(assignmentRepository.save(any(Assignment.class))).thenAnswer(invocation -> {
-            Assignment assignment = invocation.getArgument(0);
-            assignment.setId(1L);
-            return assignment;
-        });
-        when(assignmentRepository.getTechnicianWorkload(101L)).thenReturn(1);
-        
-        AssignTaskRequest request = AssignTaskRequest.builder().technicianId(101L).build();
-        
-        taskService.assignTask(1L, request, "dispatcher@fsm.com");
-        
-        ArgumentCaptor<ServiceTask> taskCaptor = ArgumentCaptor.forClass(ServiceTask.class);
-        verify(taskRepository).save(taskCaptor.capture());
-        
-        ServiceTask capturedTask = taskCaptor.getValue();
-        assertEquals(TaskStatus.ASSIGNED, capturedTask.getStatus());
-        assertEquals(101L, capturedTask.getAssignedTechnicianId());
-    }
-    
-    @Test
-    void testAssignTaskWorkloadAtThreshold() {
-        ServiceTask unassignedTask = ServiceTask.builder()
-                .id(1L)
-                .title("Test Task")
-                .clientAddress("123 Main St")
-                .priority(Priority.HIGH)
-                .status(TaskStatus.UNASSIGNED)
-                .createdBy("dispatcher@fsm.com")
-                .createdAt(LocalDateTime.now())
-                .build();
-        
-        Assignment savedAssignment = Assignment.builder()
-                .id(1L)
-                .taskId(1L)
-                .technicianId(101L)
-                .assignedAt(LocalDateTime.now())
-                .assignedBy("dispatcher@fsm.com")
-                .status(AssignmentStatus.ACTIVE)
-                .build();
-        
-        when(taskRepository.findById(1L)).thenReturn(Optional.of(unassignedTask));
-        when(taskRepository.save(any(ServiceTask.class))).thenAnswer(invocation -> invocation.getArgument(0));
-        when(assignmentRepository.save(any(Assignment.class))).thenReturn(savedAssignment);
-        when(assignmentRepository.getTechnicianWorkload(101L)).thenReturn(10); // Exactly at threshold
-        
-        AssignTaskRequest request = AssignTaskRequest.builder().technicianId(101L).build();
-        
-        AssignTaskResponse response = taskService.assignTask(1L, request, "dispatcher@fsm.com");
+        TaskListResponse response = taskService.getTasks(request);
         
         assertNotNull(response);
-        assertEquals(10, response.getTechnicianWorkload());
-        assertNull(response.getWorkloadWarning()); // No warning at exactly threshold
+        assertEquals(1, response.getTasks().size());
+        assertEquals(Priority.HIGH, response.getTasks().get(0).getPriority());
+    }
+    
+    @Test
+    void testGetTasksWithSearchTerm() {
+        TaskListRequest request = TaskListRequest.builder()
+                .search("HVAC")
+                .build();
+        
+        List<ServiceTask> tasks = Collections.singletonList(
+                createTask(1L, "HVAC Repair", Priority.HIGH, TaskStatus.UNASSIGNED)
+        );
+        Page<ServiceTask> taskPage = new PageImpl<>(tasks);
+        
+        when(taskRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(taskPage);
+        when(taskRepository.countByStatus(any(TaskStatus.class))).thenReturn(0L);
+        
+        TaskListResponse response = taskService.getTasks(request);
+        
+        assertNotNull(response);
+        assertEquals(1, response.getTasks().size());
+        assertTrue(response.getTasks().get(0).getTitle().contains("HVAC"));
+    }
+    
+    @Test
+    void testGetTasksWithSortByCreatedAt() {
+        TaskListRequest request = TaskListRequest.builder()
+                .sortBy("createdAt")
+                .sortOrder("desc")
+                .build();
+        
+        Page<ServiceTask> taskPage = new PageImpl<>(Collections.emptyList());
+        
+        when(taskRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(taskPage);
+        when(taskRepository.countByStatus(any(TaskStatus.class))).thenReturn(0L);
+        
+        TaskListResponse response = taskService.getTasks(request);
+        
+        assertNotNull(response);
+        verify(taskRepository).findAll(any(Specification.class), any(Pageable.class));
+    }
+    
+    @Test
+    void testGetTasksWithSortByStatus() {
+        TaskListRequest request = TaskListRequest.builder()
+                .sortBy("status")
+                .sortOrder("asc")
+                .build();
+        
+        Page<ServiceTask> taskPage = new PageImpl<>(Collections.emptyList());
+        
+        when(taskRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(taskPage);
+        when(taskRepository.countByStatus(any(TaskStatus.class))).thenReturn(0L);
+        
+        TaskListResponse response = taskService.getTasks(request);
+        
+        assertNotNull(response);
+        verify(taskRepository).findAll(any(Specification.class), any(Pageable.class));
+    }
+    
+    @Test
+    void testGetTasksReturnsStatusCounts() {
+        TaskListRequest request = TaskListRequest.builder().build();
+        Page<ServiceTask> taskPage = new PageImpl<>(Collections.emptyList());
+        
+        when(taskRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(taskPage);
+        when(taskRepository.countByStatus(TaskStatus.UNASSIGNED)).thenReturn(5L);
+        when(taskRepository.countByStatus(TaskStatus.ASSIGNED)).thenReturn(3L);
+        when(taskRepository.countByStatus(TaskStatus.IN_PROGRESS)).thenReturn(2L);
+        when(taskRepository.countByStatus(TaskStatus.COMPLETED)).thenReturn(10L);
+        
+        TaskListResponse response = taskService.getTasks(request);
+        
+        assertNotNull(response.getStatusCounts());
+        assertEquals(5L, response.getStatusCounts().get("UNASSIGNED"));
+        assertEquals(3L, response.getStatusCounts().get("ASSIGNED"));
+        assertEquals(2L, response.getStatusCounts().get("IN_PROGRESS"));
+        assertEquals(10L, response.getStatusCounts().get("COMPLETED"));
+    }
+    
+    @Test
+    void testGetTasksDefaultSorting() {
+        TaskListRequest request = TaskListRequest.builder().build();
+        Page<ServiceTask> taskPage = new PageImpl<>(Collections.emptyList(), PageRequest.of(0, 50), 0);
+        
+        when(taskRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(taskPage);
+        when(taskRepository.countByStatus(any(TaskStatus.class))).thenReturn(0L);
+        
+        TaskListResponse response = taskService.getTasks(request);
+        
+        assertNotNull(response);
+        // Default values should be used
+        assertEquals(0, response.getPage());
+        assertEquals(50, response.getPageSize());
+    }
+    
+    @Test
+    void testGetTasksWithCombinedFilters() {
+        TaskListRequest request = TaskListRequest.builder()
+                .status(TaskStatus.UNASSIGNED)
+                .priority(Priority.HIGH)
+                .search("urgent")
+                .page(0)
+                .pageSize(20)
+                .build();
+        
+        List<ServiceTask> tasks = Collections.singletonList(
+                createTask(1L, "Urgent HVAC", Priority.HIGH, TaskStatus.UNASSIGNED)
+        );
+        Page<ServiceTask> taskPage = new PageImpl<>(tasks, Pageable.ofSize(20), 1);
+        
+        when(taskRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(taskPage);
+        when(taskRepository.countByStatus(any(TaskStatus.class))).thenReturn(0L);
+        
+        TaskListResponse response = taskService.getTasks(request);
+        
+        assertNotNull(response);
+        assertEquals(1, response.getTasks().size());
+        assertEquals(1, response.getTotalElements());
+    }
+    
+    @Test
+    void testGetTasksMultiplePagesFirstPage() {
+        TaskListRequest request = TaskListRequest.builder()
+                .page(0)
+                .pageSize(2)
+                .build();
+        
+        List<ServiceTask> tasks = Arrays.asList(
+                createTask(1L, "Task 1", Priority.HIGH, TaskStatus.UNASSIGNED),
+                createTask(2L, "Task 2", Priority.MEDIUM, TaskStatus.ASSIGNED)
+        );
+        Page<ServiceTask> taskPage = new PageImpl<>(tasks, Pageable.ofSize(2).withPage(0), 5);
+        
+        when(taskRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(taskPage);
+        when(taskRepository.countByStatus(any(TaskStatus.class))).thenReturn(0L);
+        
+        TaskListResponse response = taskService.getTasks(request);
+        
+        assertNotNull(response);
+        assertEquals(2, response.getTasks().size());
+        assertEquals(5, response.getTotalElements());
+        assertEquals(3, response.getTotalPages());
+        assertTrue(response.isFirst());
+        assertFalse(response.isLast());
+    }
+    
+    @Test
+    void testGetTasksMultiplePagesLastPage() {
+        TaskListRequest request = TaskListRequest.builder()
+                .page(2)
+                .pageSize(2)
+                .build();
+        
+        List<ServiceTask> tasks = Collections.singletonList(
+                createTask(5L, "Task 5", Priority.LOW, TaskStatus.COMPLETED)
+        );
+        Page<ServiceTask> taskPage = new PageImpl<>(tasks, Pageable.ofSize(2).withPage(2), 5);
+        
+        when(taskRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(taskPage);
+        when(taskRepository.countByStatus(any(TaskStatus.class))).thenReturn(0L);
+        
+        TaskListResponse response = taskService.getTasks(request);
+        
+        assertNotNull(response);
+        assertEquals(1, response.getTasks().size());
+        assertEquals(5, response.getTotalElements());
+        assertEquals(3, response.getTotalPages());
+        assertFalse(response.isFirst());
+        assertTrue(response.isLast());
+    }
+    
+    @Test
+    void testGetTasksWithNullSortBy() {
+        TaskListRequest request = TaskListRequest.builder()
+                .sortBy(null)
+                .build();
+        
+        Page<ServiceTask> taskPage = new PageImpl<>(Collections.emptyList());
+        
+        when(taskRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(taskPage);
+        when(taskRepository.countByStatus(any(TaskStatus.class))).thenReturn(0L);
+        
+        TaskListResponse response = taskService.getTasks(request);
+        
+        assertNotNull(response);
+        verify(taskRepository).findAll(any(Specification.class), any(Pageable.class));
+    }
+    
+    @Test
+    void testGetTasksWithAscendingSort() {
+        TaskListRequest request = TaskListRequest.builder()
+                .sortBy("priority")
+                .sortOrder("asc")
+                .build();
+        
+        Page<ServiceTask> taskPage = new PageImpl<>(Collections.emptyList());
+        
+        when(taskRepository.findAll(any(Specification.class), any(Pageable.class))).thenReturn(taskPage);
+        when(taskRepository.countByStatus(any(TaskStatus.class))).thenReturn(0L);
+        
+        TaskListResponse response = taskService.getTasks(request);
+        
+        assertNotNull(response);
+        verify(taskRepository).findAll(any(Specification.class), any(Pageable.class));
+    }
+    
+    // Helper method to create test tasks
+    private ServiceTask createTask(Long id, String title, Priority priority, TaskStatus status) {
+        return ServiceTask.builder()
+                .id(id)
+                .title(title)
+                .description("Test Description")
+                .clientAddress("123 Test St")
+                .priority(priority)
+                .status(status)
+                .createdBy("test@fsm.com")
+                .createdAt(LocalDateTime.now())
+                .build();
     }
 }

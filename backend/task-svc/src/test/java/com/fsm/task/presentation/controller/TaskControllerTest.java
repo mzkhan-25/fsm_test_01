@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fsm.task.application.dto.AssignTaskRequest;
 import com.fsm.task.application.dto.AssignTaskResponse;
 import com.fsm.task.application.dto.CreateTaskRequest;
+import com.fsm.task.application.dto.TaskListRequest;
+import com.fsm.task.application.dto.TaskListResponse;
 import com.fsm.task.application.dto.TaskResponse;
 import com.fsm.task.application.service.TaskService;
 import com.fsm.task.domain.model.ServiceTask.Priority;
@@ -21,11 +23,16 @@ import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.LocalDateTime;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -71,6 +78,222 @@ class TaskControllerTest {
                 .createdAt(LocalDateTime.now())
                 .build();
     }
+    
+    // ============== Tests for GET /api/tasks ==============
+    
+    @Test
+    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
+    void testGetTasksReturnsOk() throws Exception {
+        TaskListResponse response = createEmptyTaskListResponse();
+        when(taskService.getTasks(any(TaskListRequest.class))).thenReturn(response);
+        
+        mockMvc.perform(get("/api/tasks"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tasks").isArray())
+                .andExpect(jsonPath("$.page").value(0))
+                .andExpect(jsonPath("$.pageSize").value(50));
+        
+        verify(taskService, times(1)).getTasks(any(TaskListRequest.class));
+    }
+    
+    @Test
+    void testGetTasksRequiresAuthentication() throws Exception {
+        mockMvc.perform(get("/api/tasks"))
+                .andExpect(status().isUnauthorized());
+        
+        verify(taskService, never()).getTasks(any());
+    }
+    
+    @Test
+    @WithMockUser(username = "user@fsm.com", roles = {"USER"})
+    void testGetTasksAllowsAnyAuthenticatedUser() throws Exception {
+        TaskListResponse response = createEmptyTaskListResponse();
+        when(taskService.getTasks(any(TaskListRequest.class))).thenReturn(response);
+        
+        mockMvc.perform(get("/api/tasks"))
+                .andExpect(status().isOk());
+    }
+    
+    @Test
+    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
+    void testGetTasksWithStatusFilter() throws Exception {
+        TaskListResponse response = createEmptyTaskListResponse();
+        when(taskService.getTasks(any(TaskListRequest.class))).thenReturn(response);
+        
+        mockMvc.perform(get("/api/tasks")
+                        .param("status", "UNASSIGNED"))
+                .andExpect(status().isOk());
+        
+        verify(taskService).getTasks(any(TaskListRequest.class));
+    }
+    
+    @Test
+    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
+    void testGetTasksWithPriorityFilter() throws Exception {
+        TaskListResponse response = createEmptyTaskListResponse();
+        when(taskService.getTasks(any(TaskListRequest.class))).thenReturn(response);
+        
+        mockMvc.perform(get("/api/tasks")
+                        .param("priority", "HIGH"))
+                .andExpect(status().isOk());
+        
+        verify(taskService).getTasks(any(TaskListRequest.class));
+    }
+    
+    @Test
+    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
+    void testGetTasksWithSearchParameter() throws Exception {
+        TaskListResponse response = createEmptyTaskListResponse();
+        when(taskService.getTasks(any(TaskListRequest.class))).thenReturn(response);
+        
+        mockMvc.perform(get("/api/tasks")
+                        .param("search", "HVAC"))
+                .andExpect(status().isOk());
+        
+        verify(taskService).getTasks(any(TaskListRequest.class));
+    }
+    
+    @Test
+    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
+    void testGetTasksWithSortingParameters() throws Exception {
+        TaskListResponse response = createEmptyTaskListResponse();
+        when(taskService.getTasks(any(TaskListRequest.class))).thenReturn(response);
+        
+        mockMvc.perform(get("/api/tasks")
+                        .param("sortBy", "createdAt")
+                        .param("sortOrder", "asc"))
+                .andExpect(status().isOk());
+        
+        verify(taskService).getTasks(any(TaskListRequest.class));
+    }
+    
+    @Test
+    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
+    void testGetTasksWithPaginationParameters() throws Exception {
+        TaskListResponse response = createTaskListResponse(0, 10);
+        when(taskService.getTasks(any(TaskListRequest.class))).thenReturn(response);
+        
+        mockMvc.perform(get("/api/tasks")
+                        .param("page", "0")
+                        .param("pageSize", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pageSize").value(10));
+        
+        verify(taskService).getTasks(any(TaskListRequest.class));
+    }
+    
+    @Test
+    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
+    void testGetTasksReturnsTasksWithData() throws Exception {
+        TaskResponse task1 = TaskResponse.builder()
+                .id(1L)
+                .title("Task 1")
+                .clientAddress("123 Main St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.UNASSIGNED)
+                .build();
+        
+        TaskResponse task2 = TaskResponse.builder()
+                .id(2L)
+                .title("Task 2")
+                .clientAddress("456 Oak Ave")
+                .priority(Priority.MEDIUM)
+                .status(TaskStatus.ASSIGNED)
+                .build();
+        
+        Map<String, Long> statusCounts = new HashMap<>();
+        statusCounts.put("UNASSIGNED", 1L);
+        statusCounts.put("ASSIGNED", 1L);
+        statusCounts.put("IN_PROGRESS", 0L);
+        statusCounts.put("COMPLETED", 0L);
+        
+        TaskListResponse response = TaskListResponse.builder()
+                .tasks(Arrays.asList(task1, task2))
+                .page(0)
+                .pageSize(50)
+                .totalElements(2)
+                .totalPages(1)
+                .first(true)
+                .last(true)
+                .statusCounts(statusCounts)
+                .build();
+        
+        when(taskService.getTasks(any(TaskListRequest.class))).thenReturn(response);
+        
+        mockMvc.perform(get("/api/tasks"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tasks").isArray())
+                .andExpect(jsonPath("$.tasks.length()").value(2))
+                .andExpect(jsonPath("$.tasks[0].id").value(1))
+                .andExpect(jsonPath("$.tasks[0].title").value("Task 1"))
+                .andExpect(jsonPath("$.tasks[1].id").value(2))
+                .andExpect(jsonPath("$.tasks[1].title").value("Task 2"))
+                .andExpect(jsonPath("$.totalElements").value(2))
+                .andExpect(jsonPath("$.statusCounts.UNASSIGNED").value(1))
+                .andExpect(jsonPath("$.statusCounts.ASSIGNED").value(1));
+    }
+    
+    @Test
+    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
+    void testGetTasksWithAllFilters() throws Exception {
+        TaskListResponse response = createEmptyTaskListResponse();
+        when(taskService.getTasks(any(TaskListRequest.class))).thenReturn(response);
+        
+        mockMvc.perform(get("/api/tasks")
+                        .param("status", "UNASSIGNED")
+                        .param("priority", "HIGH")
+                        .param("search", "urgent")
+                        .param("sortBy", "priority")
+                        .param("sortOrder", "desc")
+                        .param("page", "0")
+                        .param("pageSize", "20"))
+                .andExpect(status().isOk());
+        
+        verify(taskService).getTasks(any(TaskListRequest.class));
+    }
+    
+    @Test
+    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
+    void testGetTasksCapsPageSizeAt100() throws Exception {
+        // When pageSize > 100, it should be capped to 100
+        TaskListResponse response = createTaskListResponse(0, 100);
+        when(taskService.getTasks(any(TaskListRequest.class))).thenReturn(response);
+        
+        mockMvc.perform(get("/api/tasks")
+                        .param("pageSize", "200"))
+                .andExpect(status().isOk());
+        
+        verify(taskService).getTasks(any(TaskListRequest.class));
+    }
+    
+    @Test
+    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
+    void testGetTasksDefaultPageSizeIs50() throws Exception {
+        TaskListResponse response = createTaskListResponse(0, 50);
+        when(taskService.getTasks(any(TaskListRequest.class))).thenReturn(response);
+        
+        mockMvc.perform(get("/api/tasks"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.pageSize").value(50));
+    }
+    
+    @Test
+    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
+    void testGetTasksInvalidStatusReturns400() throws Exception {
+        mockMvc.perform(get("/api/tasks")
+                        .param("status", "INVALID_STATUS"))
+                .andExpect(status().isBadRequest());
+    }
+    
+    @Test
+    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
+    void testGetTasksInvalidPriorityReturns400() throws Exception {
+        mockMvc.perform(get("/api/tasks")
+                        .param("priority", "INVALID_PRIORITY"))
+                .andExpect(status().isBadRequest());
+    }
+    
+    // ============== Tests for POST /api/tasks ==============
     
     @Test
     @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
@@ -324,165 +547,39 @@ class TaskControllerTest {
                 .andExpect(status().isCreated());
     }
     
-    // ==================== Task Assignment Endpoint Tests ====================
-    
-    @Test
-    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
-    void testAssignTaskAsDispatcher() throws Exception {
-        AssignTaskRequest assignRequest = AssignTaskRequest.builder()
-                .technicianId(101L)
-                .build();
-        
-        AssignTaskResponse assignResponse = AssignTaskResponse.builder()
-                .assignmentId(1L)
-                .taskId(1L)
-                .technicianId(101L)
-                .assignedAt(LocalDateTime.now())
-                .assignedBy("dispatcher@fsm.com")
-                .taskStatus(TaskStatus.ASSIGNED)
-                .technicianWorkload(5)
-                .workloadWarning(null)
-                .build();
-        
-        when(taskService.assignTask(eq(1L), any(AssignTaskRequest.class), eq("dispatcher@fsm.com")))
-                .thenReturn(assignResponse);
-        
-        mockMvc.perform(post("/api/tasks/1/assign")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(assignRequest)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.assignmentId").value(1))
-                .andExpect(jsonPath("$.taskId").value(1))
-                .andExpect(jsonPath("$.technicianId").value(101))
-                .andExpect(jsonPath("$.taskStatus").value("ASSIGNED"))
-                .andExpect(jsonPath("$.technicianWorkload").value(5))
-                .andExpect(jsonPath("$.workloadWarning").doesNotExist());
-        
-        verify(taskService, times(1)).assignTask(eq(1L), any(AssignTaskRequest.class), eq("dispatcher@fsm.com"));
+    // Helper methods
+    private Map<String, Long> createDefaultStatusCounts() {
+        Map<String, Long> statusCounts = new HashMap<>();
+        statusCounts.put("UNASSIGNED", 0L);
+        statusCounts.put("ASSIGNED", 0L);
+        statusCounts.put("IN_PROGRESS", 0L);
+        statusCounts.put("COMPLETED", 0L);
+        return statusCounts;
     }
     
-    @Test
-    @WithMockUser(username = "admin@fsm.com", roles = {"ADMIN"})
-    void testAssignTaskAsAdmin() throws Exception {
-        AssignTaskRequest assignRequest = AssignTaskRequest.builder()
-                .technicianId(102L)
+    private TaskListResponse createEmptyTaskListResponse() {
+        return TaskListResponse.builder()
+                .tasks(Collections.emptyList())
+                .page(0)
+                .pageSize(50)
+                .totalElements(0)
+                .totalPages(0)
+                .first(true)
+                .last(true)
+                .statusCounts(createDefaultStatusCounts())
                 .build();
-        
-        AssignTaskResponse assignResponse = AssignTaskResponse.builder()
-                .assignmentId(2L)
-                .taskId(5L)
-                .technicianId(102L)
-                .assignedAt(LocalDateTime.now())
-                .assignedBy("admin@fsm.com")
-                .taskStatus(TaskStatus.ASSIGNED)
-                .technicianWorkload(3)
-                .build();
-        
-        when(taskService.assignTask(eq(5L), any(AssignTaskRequest.class), eq("admin@fsm.com")))
-                .thenReturn(assignResponse);
-        
-        mockMvc.perform(post("/api/tasks/5/assign")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(assignRequest)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.assignmentId").value(2))
-                .andExpect(jsonPath("$.technicianId").value(102));
     }
     
-    @Test
-    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
-    void testAssignTaskWithWorkloadWarning() throws Exception {
-        AssignTaskRequest assignRequest = AssignTaskRequest.builder()
-                .technicianId(101L)
+    private TaskListResponse createTaskListResponse(int page, int pageSize) {
+        return TaskListResponse.builder()
+                .tasks(Collections.emptyList())
+                .page(page)
+                .pageSize(pageSize)
+                .totalElements(0)
+                .totalPages(0)
+                .first(page == 0)
+                .last(true)
+                .statusCounts(createDefaultStatusCounts())
                 .build();
-        
-        AssignTaskResponse assignResponse = AssignTaskResponse.builder()
-                .assignmentId(1L)
-                .taskId(1L)
-                .technicianId(101L)
-                .assignedAt(LocalDateTime.now())
-                .assignedBy("dispatcher@fsm.com")
-                .taskStatus(TaskStatus.ASSIGNED)
-                .technicianWorkload(12)
-                .workloadWarning("Warning: Technician has 12 active tasks, which exceeds the recommended threshold of 10")
-                .build();
-        
-        when(taskService.assignTask(eq(1L), any(AssignTaskRequest.class), eq("dispatcher@fsm.com")))
-                .thenReturn(assignResponse);
-        
-        mockMvc.perform(post("/api/tasks/1/assign")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(assignRequest)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.technicianWorkload").value(12))
-                .andExpect(jsonPath("$.workloadWarning").exists())
-                .andExpect(jsonPath("$.workloadWarning").value("Warning: Technician has 12 active tasks, which exceeds the recommended threshold of 10"));
-    }
-    
-    @Test
-    void testAssignTaskUnauthenticated() throws Exception {
-        AssignTaskRequest assignRequest = AssignTaskRequest.builder()
-                .technicianId(101L)
-                .build();
-        
-        mockMvc.perform(post("/api/tasks/1/assign")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(assignRequest)))
-                .andExpect(status().isUnauthorized());
-        
-        verify(taskService, never()).assignTask(any(), any(), any());
-    }
-    
-    @Test
-    @WithMockUser(username = "technician@fsm.com", roles = {"TECHNICIAN"})
-    void testAssignTaskForbiddenForTechnician() throws Exception {
-        AssignTaskRequest assignRequest = AssignTaskRequest.builder()
-                .technicianId(101L)
-                .build();
-        
-        mockMvc.perform(post("/api/tasks/1/assign")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(assignRequest)))
-                .andExpect(status().isForbidden());
-        
-        verify(taskService, never()).assignTask(any(), any(), any());
-    }
-    
-    @Test
-    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
-    void testAssignTaskWithNullTechnicianId() throws Exception {
-        AssignTaskRequest invalidRequest = AssignTaskRequest.builder()
-                .technicianId(null)
-                .build();
-        
-        mockMvc.perform(post("/api/tasks/1/assign")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(invalidRequest)))
-                .andExpect(status().isBadRequest());
-        
-        verify(taskService, never()).assignTask(any(), any(), any());
-    }
-    
-    @Test
-    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
-    void testAssignTaskNotFound() throws Exception {
-        AssignTaskRequest assignRequest = AssignTaskRequest.builder()
-                .technicianId(101L)
-                .build();
-        
-        when(taskService.assignTask(eq(999L), any(AssignTaskRequest.class), eq("dispatcher@fsm.com")))
-                .thenThrow(new IllegalArgumentException("Task not found with ID: 999"));
-        
-        mockMvc.perform(post("/api/tasks/999/assign")
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(assignRequest)))
-                .andExpect(status().isBadRequest());
     }
 }

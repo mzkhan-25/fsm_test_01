@@ -3,19 +3,30 @@ package com.fsm.task.application.service;
 import com.fsm.task.application.dto.AssignTaskRequest;
 import com.fsm.task.application.dto.AssignTaskResponse;
 import com.fsm.task.application.dto.CreateTaskRequest;
+import com.fsm.task.application.dto.TaskListRequest;
+import com.fsm.task.application.dto.TaskListResponse;
 import com.fsm.task.application.dto.TaskResponse;
 import com.fsm.task.domain.model.Assignment;
 import com.fsm.task.domain.model.Assignment.AssignmentStatus;
 import com.fsm.task.domain.model.ServiceTask;
-import com.fsm.task.domain.repository.AssignmentRepository;
+import com.fsm.task.domain.model.ServiceTask.Priority;
+import com.fsm.task.domain.model.ServiceTask.TaskStatus;
 import com.fsm.task.domain.repository.TaskRepository;
+import com.fsm.task.domain.repository.TaskSpecification;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
-import java.util.Optional;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Service layer for task management operations.
@@ -57,78 +68,98 @@ public class TaskService {
     }
     
     /**
-     * Assigns a task to a technician.
-     * Creates an assignment record and updates task status.
-     * Returns a warning if technician workload exceeds threshold.
+     * Retrieves a list of tasks with filtering, sorting, and pagination.
      * 
-     * Domain Invariants:
-     * - Only UNASSIGNED or ASSIGNED tasks can be (re)assigned
-     * - Task must exist
-     * - Technician must exist and be active (validated at controller level or via external service)
-     * - Assignment creates entry in assignment history
-     * 
-     * @param taskId the ID of the task to assign
-     * @param request the assignment request containing technician ID
-     * @param assignedBy the username/email of the authenticated user making the assignment
-     * @return AssignTaskResponse with assignment details and workload warning if applicable
-     * @throws IllegalArgumentException if task not found or cannot be assigned
+     * @param request the task list request containing filter and pagination parameters
+     * @return TaskListResponse with tasks, pagination info, and status counts
      */
-    @Transactional
-    public AssignTaskResponse assignTask(Long taskId, AssignTaskRequest request, String assignedBy) {
-        log.info("Assigning task {} to technician {} by user: {}", taskId, request.getTechnicianId(), assignedBy);
+    @Transactional(readOnly = true)
+    public TaskListResponse getTasks(TaskListRequest request) {
+        log.info("Fetching tasks with filters - status: {}, priority: {}, search: {}, sortBy: {}, sortOrder: {}, page: {}, pageSize: {}",
+                request.getStatus(), request.getPriority(), request.getSearch(),
+                request.getSortBy(), request.getSortOrder(), request.getPage(), request.getPageSize());
         
-        // Find the task
-        ServiceTask task = taskRepository.findById(taskId)
-                .orElseThrow(() -> {
-                    log.warn("Task not found with ID: {}", taskId);
-                    return new IllegalArgumentException("Task not found with ID: " + taskId);
-                });
+        // Build sorting - default sorting: priority desc, createdAt desc
+        Sort sort = buildSort(request.getSortBy(), request.getSortOrder());
         
-        // Validate task can be assigned
-        if (!task.canBeAssigned()) {
-            log.warn("Task {} cannot be assigned. Current status: {}", taskId, task.getStatus());
-            throw new IllegalArgumentException("Task cannot be assigned. Current status: " + task.getStatus());
-        }
+        // Build pagination
+        Pageable pageable = PageRequest.of(request.getPage(), request.getPageSize(), sort);
         
-        Long technicianId = request.getTechnicianId();
+        // Build specification for filtering
+        Specification<ServiceTask> spec = TaskSpecification.withFilters(
+                request.getStatus(),
+                request.getPriority(),
+                request.getSearch()
+        );
         
-        // If task is already assigned, handle reassignment
-        if (task.isAssigned()) {
-            // Mark current assignment as reassigned
-            Optional<Assignment> currentAssignment = assignmentRepository
-                    .findByTaskIdAndStatus(taskId, AssignmentStatus.ACTIVE);
-            currentAssignment.ifPresent(assignment -> {
-                assignment.markAsReassigned("Reassigned to technician " + technicianId);
-                assignmentRepository.save(assignment);
-                log.info("Previous assignment {} marked as reassigned", assignment.getId());
-            });
-            
-            // Reassign the task
-            task.reassignToTechnician(technicianId);
-        } else {
-            // Assign the task
-            task.assignToTechnician(technicianId);
-        }
+        // Execute query with filtering and pagination
+        Page<ServiceTask> taskPage = taskRepository.findAll(spec, pageable);
         
-        // Save updated task
-        ServiceTask savedTask = taskRepository.save(task);
+        // Convert to DTOs
+        List<TaskResponse> taskResponses = taskPage.getContent().stream()
+                .map(TaskResponse::fromEntity)
+                .collect(Collectors.toList());
         
-        // Create new assignment record
-        Assignment assignment = Assignment.builder()
-                .taskId(taskId)
-                .technicianId(technicianId)
-                .assignedAt(LocalDateTime.now())
-                .assignedBy(assignedBy)
-                .status(AssignmentStatus.ACTIVE)
+        // Get status counts for all tasks (not filtered)
+        Map<String, Long> statusCounts = getStatusCounts();
+        
+        log.info("Found {} tasks (page {} of {})", taskResponses.size(), request.getPage() + 1, taskPage.getTotalPages());
+        
+        return TaskListResponse.builder()
+                .tasks(taskResponses)
+                .page(taskPage.getNumber())
+                .pageSize(taskPage.getSize())
+                .totalElements(taskPage.getTotalElements())
+                .totalPages(taskPage.getTotalPages())
+                .first(taskPage.isFirst())
+                .last(taskPage.isLast())
+                .statusCounts(statusCounts)
                 .build();
+    }
+    
+    /**
+     * Builds the Sort object based on sortBy and sortOrder parameters.
+     * Default sorting is by priority (desc) and then by createdAt (desc).
+     * 
+     * @param sortBy the field to sort by (priority, createdAt, status)
+     * @param sortOrder the sort order (asc, desc)
+     * @return Sort object for the query
+     */
+    private Sort buildSort(String sortBy, String sortOrder) {
+        Sort.Direction direction = "asc".equalsIgnoreCase(sortOrder) ? Sort.Direction.ASC : Sort.Direction.DESC;
         
-        Assignment savedAssignment = assignmentRepository.save(assignment);
-        log.info("Assignment created with ID: {} for task: {}", savedAssignment.getId(), taskId);
+        String sortField;
+        switch (sortBy != null ? sortBy.toLowerCase() : "priority") {
+            case "createdat":
+                sortField = "createdAt";
+                break;
+            case "status":
+                sortField = "status";
+                break;
+            case "priority":
+            default:
+                sortField = "priority";
+                break;
+        }
         
-        // Get technician workload (after this assignment)
-        int workload = assignmentRepository.getTechnicianWorkload(technicianId);
-        log.info("Technician {} current workload: {}", technicianId, workload);
+        // For priority sorting, add secondary sort by createdAt desc
+        if ("priority".equals(sortField)) {
+            return Sort.by(direction, sortField).and(Sort.by(Sort.Direction.DESC, "createdAt"));
+        }
         
-        return AssignTaskResponse.fromAssignment(savedAssignment, savedTask, workload, assignedBy);
+        return Sort.by(direction, sortField);
+    }
+    
+    /**
+     * Gets the count of tasks for each status.
+     * 
+     * @return Map with status names as keys and counts as values
+     */
+    private Map<String, Long> getStatusCounts() {
+        Map<String, Long> counts = new HashMap<>();
+        for (TaskStatus status : TaskStatus.values()) {
+            counts.put(status.name(), taskRepository.countByStatus(status));
+        }
+        return counts;
     }
 }

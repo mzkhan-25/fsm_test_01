@@ -43,8 +43,8 @@ class SecurityConfigTest {
     @Test
     @WithMockUser(roles = "DISPATCHER")
     void testProtectedEndpointAccessibleWithAuthentication() throws Exception {
-        // GET is not implemented, so this would return 405, but the point is it gets past auth
+        // GET endpoint for tasks should return 200 with authenticated user
         mockMvc.perform(get("/api/tasks"))
-                .andExpect(status().isMethodNotAllowed());
+                .andExpect(status().isOk());
     }
 }
