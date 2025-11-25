@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import PropTypes from 'prop-types';
 import { getAssignedTasks } from '../services/taskService';
 import './TaskListView.css';
 
@@ -9,7 +10,7 @@ const STATUS_FILTERS = [
   { key: 'completed', label: 'Completed' },
 ];
 
-const TaskListView = () => {
+const TaskListView = ({ onTaskSelect }) => {
   const [tasks, setTasks] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -172,6 +173,13 @@ const TaskListView = () => {
                 role="listitem"
                 tabIndex={0}
                 aria-label={`Task: ${task.title}`}
+                onClick={() => onTaskSelect && onTaskSelect(task.id)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    onTaskSelect && onTaskSelect(task.id);
+                  }
+                }}
               >
                 <div className="task-card-header">
                   <h2 className="task-title">{task.title}</h2>
@@ -197,6 +205,10 @@ const TaskListView = () => {
       </div>
     </div>
   );
+};
+
+TaskListView.propTypes = {
+  onTaskSelect: PropTypes.func,
 };
 
 export default TaskListView;
