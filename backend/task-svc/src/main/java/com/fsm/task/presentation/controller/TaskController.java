@@ -8,6 +8,8 @@ import com.fsm.task.application.dto.ReassignTaskResponse;
 import com.fsm.task.application.dto.TaskListRequest;
 import com.fsm.task.application.dto.TaskListResponse;
 import com.fsm.task.application.dto.TaskResponse;
+import com.fsm.task.application.dto.TechnicianTaskResponse;
+import com.fsm.task.application.dto.UpdateTaskStatusRequest;
 import com.fsm.task.application.service.TaskService;
 import com.fsm.task.domain.model.ServiceTask.Priority;
 import com.fsm.task.domain.model.ServiceTask.TaskStatus;
@@ -298,6 +300,69 @@ public class TaskController {
     }
     
     /**
+     * Updates the status of a task.
+     * Only technicians can update the status of their assigned tasks.
+     * Currently supports transitioning from ASSIGNED to IN_PROGRESS.
+     * 
+     * Domain Invariants:
+     * - Only assigned technician can update task status
+     * - Task must be in ASSIGNED status to move to IN_PROGRESS
+     * - Cannot skip statuses (e.g., UNASSIGNED to IN_PROGRESS)
+     * - Status change timestamp (startedAt) is recorded
+     * 
+     * @param taskId the ID of the task to update
+     * @param request the update request containing the new status
+     * @return ResponseEntity with updated task details and 200 status
+     */
+    @PatchMapping("/{taskId}/status")
+    @RequireRole({Role.TECHNICIAN})
+    @Operation(
+            summary = "Update task status",
+            description = "Updates the status of a task. Only technicians can update the status of their assigned tasks. " +
+                    "Currently supports transitioning from ASSIGNED to IN_PROGRESS. " +
+                    "The startedAt timestamp is recorded when a task is started.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Task status updated successfully",
+                    content = @Content(schema = @Schema(implementation = TechnicianTaskResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid request - invalid status transition or validation failed",
+                    content = @Content
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Unauthorized - authentication required",
+                    content = @Content
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Forbidden - technician not assigned to task or insufficient permissions",
+                    content = @Content
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Task not found",
+                    content = @Content
+            )
+    })
+    public ResponseEntity<TechnicianTaskResponse> updateTaskStatus(
+            @Parameter(description = "ID of the task to update", required = true)
+            @PathVariable Long taskId,
+            @Valid @RequestBody UpdateTaskStatusRequest request) {
+        Long technicianId = getAuthenticatedTechnicianId();
+        log.info("Received request to update task {} status to {} by technician {}", 
+                taskId, request.getStatus(), technicianId);
+        
+        TechnicianTaskResponse response = taskService.updateTaskStatus(taskId, request, technicianId);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
      * Gets the username of the authenticated user from the security context.
      * 
      * @return the authenticated username, or "anonymous" if not authenticated
@@ -309,5 +374,58 @@ public class TaskController {
             return authentication.getName();
         }
         return "anonymous";
+    }
+    
+    /**
+     * Gets the technician ID of the authenticated user from the security context.
+     * Extracts the technician ID from the authentication principal.
+     * 
+     * PRODUCTION NOTE: In a real production environment, this would extract the 
+     * technician ID from JWT token claims (e.g., a "technicianId" claim). The current
+     * implementation uses a convention-based approach for development/testing.
+     * 
+     * Convention: Username should be in format "technician_{id}" (e.g., "technician_101")
+     * or the ID will be derived from the username.
+     * 
+     * @return the authenticated technician's ID
+     * @throws IllegalStateException if the user is not authenticated
+     */
+    private Long getAuthenticatedTechnicianId() {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication == null || !authentication.isAuthenticated() 
+                || "anonymousUser".equals(authentication.getPrincipal())) {
+            throw new IllegalStateException("User must be authenticated to update task status");
+        }
+        
+        // In production, this would extract technician ID from JWT claims
+        // For now, we use a convention-based approach
+        String username = authentication.getName();
+        
+        // Try to extract numeric ID from username pattern "technician_{id}"
+        if (username.startsWith("technician_")) {
+            try {
+                String idPart = username.substring("technician_".length());
+                return Long.parseLong(idPart);
+            } catch (NumberFormatException e) {
+                log.debug("Could not parse technician ID from username: {}", username);
+            }
+        }
+        
+        // For other username formats (e.g., "tech_user_42"), try extracting the last numeric part
+        if (username.contains("_")) {
+            try {
+                String idPart = username.substring(username.lastIndexOf("_") + 1);
+                return Long.parseLong(idPart);
+            } catch (NumberFormatException e) {
+                log.debug("Could not parse numeric ID from username: {}", username);
+            }
+        }
+        
+        // Fallback: Use a deterministic ID based on username
+        // WARNING: This is for DEVELOPMENT/TESTING ONLY!
+        long hashBasedId = Math.abs((long) username.hashCode());
+        log.warn("Using hash-based technician ID {} for username: {}. This is for development only!", 
+                hashBasedId, username);
+        return hashBasedId;
     }
 }

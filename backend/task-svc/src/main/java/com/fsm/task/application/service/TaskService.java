@@ -10,8 +10,11 @@ import com.fsm.task.application.dto.TaskListResponse;
 import com.fsm.task.application.dto.TaskResponse;
 import com.fsm.task.application.dto.TechnicianTaskListResponse;
 import com.fsm.task.application.dto.TechnicianTaskResponse;
+import com.fsm.task.application.dto.UpdateTaskStatusRequest;
 import com.fsm.task.application.exception.InvalidAssignmentException;
+import com.fsm.task.application.exception.InvalidStatusTransitionException;
 import com.fsm.task.application.exception.TaskNotFoundException;
+import com.fsm.task.application.exception.UnauthorizedTaskAccessException;
 import com.fsm.task.domain.model.Assignment;
 import com.fsm.task.domain.model.Assignment.AssignmentStatus;
 import com.fsm.task.domain.model.AssignmentHistory;
@@ -448,5 +451,73 @@ public class TaskService {
         
         log.warn("Invalid status filter: {}. Returning all tasks.", status);
         return null;
+    }
+    
+    /**
+     * Updates the status of a task by an authenticated technician.
+     * 
+     * Domain Invariants:
+     * - Only assigned technician can update task status
+     * - Task must be in ASSIGNED status to move to IN_PROGRESS
+     * - Cannot skip statuses (e.g., UNASSIGNED to IN_PROGRESS)
+     * - Status change timestamp (startedAt) is recorded
+     * 
+     * @param taskId the ID of the task to update
+     * @param request the update request containing the new status
+     * @param technicianId the ID of the authenticated technician
+     * @return TechnicianTaskResponse with the updated task details
+     * @throws TaskNotFoundException if the task doesn't exist
+     * @throws UnauthorizedTaskAccessException if the technician is not assigned to the task
+     * @throws InvalidStatusTransitionException if the status transition is not allowed
+     */
+    @Transactional
+    public TechnicianTaskResponse updateTaskStatus(Long taskId, UpdateTaskStatusRequest request, Long technicianId) {
+        log.info("Updating task {} status to {} by technician {}", taskId, request.getStatus(), technicianId);
+        
+        // Find the task
+        ServiceTask task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new TaskNotFoundException(taskId));
+        
+        // Validate that the authenticated technician is assigned to this task
+        if (!task.isAssignedTo(technicianId)) {
+            log.warn("Technician {} attempted to update task {} that is assigned to technician {}", 
+                    technicianId, taskId, task.getAssignedTechnicianId());
+            throw new UnauthorizedTaskAccessException(
+                    String.format("Technician %d is not assigned to task %d", technicianId, taskId));
+        }
+        
+        // Validate and perform the status transition
+        TaskStatus newStatus = request.getStatus();
+        
+        if (newStatus == TaskStatus.IN_PROGRESS) {
+            // Validate that task can be started (must be in ASSIGNED status)
+            if (!task.canBeStarted()) {
+                log.warn("Attempted to start task {} with status {} - only ASSIGNED tasks can be started", 
+                        taskId, task.getStatus());
+                throw new InvalidStatusTransitionException(
+                        String.format("Task %d cannot be started. Current status: %s. Only ASSIGNED tasks can be started.", 
+                                taskId, task.getStatus()));
+            }
+            
+            // Start the task (this records the startedAt timestamp)
+            task.start();
+            log.info("Task {} started at {}", taskId, task.getStartedAt());
+        } else {
+            // For now, only IN_PROGRESS transition is supported
+            throw new InvalidStatusTransitionException(
+                    String.format("Status transition to %s is not supported through this endpoint", newStatus));
+        }
+        
+        // Save the updated task
+        ServiceTask savedTask = taskRepository.save(task);
+        log.info("Task {} status updated to {}", taskId, savedTask.getStatus());
+        
+        // Get the assigned at timestamp from the assignment
+        Optional<Assignment> activeAssignment = assignmentRepository.findActiveAssignmentForTask(taskId);
+        LocalDateTime assignedAt = activeAssignment
+                .map(Assignment::getAssignedAt)
+                .orElse(task.getCreatedAt());
+        
+        return TechnicianTaskResponse.fromEntity(savedTask, assignedAt);
     }
 }

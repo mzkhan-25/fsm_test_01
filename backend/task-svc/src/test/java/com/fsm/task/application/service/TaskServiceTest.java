@@ -10,9 +10,12 @@ import com.fsm.task.application.dto.TaskListResponse;
 import com.fsm.task.application.dto.TaskResponse;
 import com.fsm.task.application.dto.TechnicianTaskListResponse;
 import com.fsm.task.application.dto.TechnicianTaskResponse;
+import com.fsm.task.application.dto.UpdateTaskStatusRequest;
 import com.fsm.task.application.exception.InvalidAssignmentException;
+import com.fsm.task.application.exception.InvalidStatusTransitionException;
 import com.fsm.task.application.exception.TaskNotFoundException;
 import com.fsm.task.application.exception.TechnicianNotFoundException;
+import com.fsm.task.application.exception.UnauthorizedTaskAccessException;
 import com.fsm.task.domain.model.Assignment;
 import com.fsm.task.domain.model.Assignment.AssignmentStatus;
 import com.fsm.task.domain.model.AssignmentHistory;
@@ -1236,5 +1239,303 @@ class TaskServiceTest {
                 .createdBy("test@fsm.com")
                 .createdAt(LocalDateTime.now())
                 .build();
+    }
+    
+    // ============== Tests for updateTaskStatus ==============
+    
+    @Test
+    void testUpdateTaskStatusToInProgressSuccess() {
+        Long taskId = 1L;
+        Long technicianId = 101L;
+        
+        ServiceTask task = ServiceTask.builder()
+                .id(taskId)
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.ASSIGNED)
+                .assignedTechnicianId(technicianId)
+                .createdBy("dispatcher@fsm.com")
+                .createdAt(LocalDateTime.now())
+                .build();
+        
+        UpdateTaskStatusRequest request = UpdateTaskStatusRequest.builder()
+                .status(TaskStatus.IN_PROGRESS)
+                .build();
+        
+        Assignment assignment = Assignment.builder()
+                .id(1L)
+                .taskId(taskId)
+                .technicianId(technicianId)
+                .assignedAt(LocalDateTime.now().minusHours(1))
+                .assignedBy("dispatcher@fsm.com")
+                .status(AssignmentStatus.ACTIVE)
+                .build();
+        
+        when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+        when(taskRepository.save(any(ServiceTask.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(assignmentRepository.findActiveAssignmentForTask(taskId)).thenReturn(Optional.of(assignment));
+        
+        TechnicianTaskResponse response = taskService.updateTaskStatus(taskId, request, technicianId);
+        
+        assertNotNull(response);
+        assertEquals(taskId, response.getId());
+        assertEquals(TaskStatus.IN_PROGRESS, response.getStatus());
+        assertNotNull(response.getStartedAt());
+        
+        verify(taskRepository).save(any(ServiceTask.class));
+    }
+    
+    @Test
+    void testUpdateTaskStatusTaskNotFound() {
+        Long taskId = 999L;
+        Long technicianId = 101L;
+        
+        UpdateTaskStatusRequest request = UpdateTaskStatusRequest.builder()
+                .status(TaskStatus.IN_PROGRESS)
+                .build();
+        
+        when(taskRepository.findById(taskId)).thenReturn(Optional.empty());
+        
+        assertThrows(TaskNotFoundException.class, 
+                () -> taskService.updateTaskStatus(taskId, request, technicianId));
+        
+        verify(taskRepository, never()).save(any());
+    }
+    
+    @Test
+    void testUpdateTaskStatusTechnicianNotAssigned() {
+        Long taskId = 1L;
+        Long assignedTechnicianId = 100L;
+        Long unauthorizedTechnicianId = 101L;
+        
+        ServiceTask task = ServiceTask.builder()
+                .id(taskId)
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.ASSIGNED)
+                .assignedTechnicianId(assignedTechnicianId)
+                .createdBy("dispatcher@fsm.com")
+                .createdAt(LocalDateTime.now())
+                .build();
+        
+        UpdateTaskStatusRequest request = UpdateTaskStatusRequest.builder()
+                .status(TaskStatus.IN_PROGRESS)
+                .build();
+        
+        when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+        
+        UnauthorizedTaskAccessException exception = assertThrows(
+                UnauthorizedTaskAccessException.class,
+                () -> taskService.updateTaskStatus(taskId, request, unauthorizedTechnicianId)
+        );
+        
+        assertTrue(exception.getMessage().contains("not assigned"));
+        verify(taskRepository, never()).save(any());
+    }
+    
+    @Test
+    void testUpdateTaskStatusFromUnassignedFails() {
+        Long taskId = 1L;
+        Long technicianId = 101L;
+        
+        ServiceTask task = ServiceTask.builder()
+                .id(taskId)
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.UNASSIGNED)
+                .assignedTechnicianId(technicianId)
+                .createdBy("dispatcher@fsm.com")
+                .createdAt(LocalDateTime.now())
+                .build();
+        
+        UpdateTaskStatusRequest request = UpdateTaskStatusRequest.builder()
+                .status(TaskStatus.IN_PROGRESS)
+                .build();
+        
+        when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+        
+        InvalidStatusTransitionException exception = assertThrows(
+                InvalidStatusTransitionException.class,
+                () -> taskService.updateTaskStatus(taskId, request, technicianId)
+        );
+        
+        assertTrue(exception.getMessage().contains("cannot be started"));
+        verify(taskRepository, never()).save(any());
+    }
+    
+    @Test
+    void testUpdateTaskStatusFromInProgressFails() {
+        Long taskId = 1L;
+        Long technicianId = 101L;
+        
+        ServiceTask task = ServiceTask.builder()
+                .id(taskId)
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.IN_PROGRESS)
+                .assignedTechnicianId(technicianId)
+                .createdBy("dispatcher@fsm.com")
+                .createdAt(LocalDateTime.now())
+                .startedAt(LocalDateTime.now().minusMinutes(30))
+                .build();
+        
+        UpdateTaskStatusRequest request = UpdateTaskStatusRequest.builder()
+                .status(TaskStatus.IN_PROGRESS)
+                .build();
+        
+        when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+        
+        InvalidStatusTransitionException exception = assertThrows(
+                InvalidStatusTransitionException.class,
+                () -> taskService.updateTaskStatus(taskId, request, technicianId)
+        );
+        
+        assertTrue(exception.getMessage().contains("cannot be started"));
+        verify(taskRepository, never()).save(any());
+    }
+    
+    @Test
+    void testUpdateTaskStatusFromCompletedFails() {
+        Long taskId = 1L;
+        Long technicianId = 101L;
+        
+        ServiceTask task = ServiceTask.builder()
+                .id(taskId)
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.COMPLETED)
+                .assignedTechnicianId(technicianId)
+                .createdBy("dispatcher@fsm.com")
+                .createdAt(LocalDateTime.now())
+                .build();
+        
+        UpdateTaskStatusRequest request = UpdateTaskStatusRequest.builder()
+                .status(TaskStatus.IN_PROGRESS)
+                .build();
+        
+        when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+        
+        InvalidStatusTransitionException exception = assertThrows(
+                InvalidStatusTransitionException.class,
+                () -> taskService.updateTaskStatus(taskId, request, technicianId)
+        );
+        
+        assertTrue(exception.getMessage().contains("cannot be started"));
+        verify(taskRepository, never()).save(any());
+    }
+    
+    @Test
+    void testUpdateTaskStatusToUnsupportedStatusFails() {
+        Long taskId = 1L;
+        Long technicianId = 101L;
+        
+        ServiceTask task = ServiceTask.builder()
+                .id(taskId)
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.ASSIGNED)
+                .assignedTechnicianId(technicianId)
+                .createdBy("dispatcher@fsm.com")
+                .createdAt(LocalDateTime.now())
+                .build();
+        
+        UpdateTaskStatusRequest request = UpdateTaskStatusRequest.builder()
+                .status(TaskStatus.COMPLETED)
+                .build();
+        
+        when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+        
+        InvalidStatusTransitionException exception = assertThrows(
+                InvalidStatusTransitionException.class,
+                () -> taskService.updateTaskStatus(taskId, request, technicianId)
+        );
+        
+        assertTrue(exception.getMessage().contains("not supported"));
+        verify(taskRepository, never()).save(any());
+    }
+    
+    @Test
+    void testUpdateTaskStatusRecordsStartedAtTimestamp() {
+        Long taskId = 1L;
+        Long technicianId = 101L;
+        
+        ServiceTask task = ServiceTask.builder()
+                .id(taskId)
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.ASSIGNED)
+                .assignedTechnicianId(technicianId)
+                .createdBy("dispatcher@fsm.com")
+                .createdAt(LocalDateTime.now())
+                .build();
+        
+        UpdateTaskStatusRequest request = UpdateTaskStatusRequest.builder()
+                .status(TaskStatus.IN_PROGRESS)
+                .build();
+        
+        when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+        when(taskRepository.save(any(ServiceTask.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(assignmentRepository.findActiveAssignmentForTask(taskId)).thenReturn(Optional.empty());
+        
+        LocalDateTime beforeUpdate = LocalDateTime.now();
+        TechnicianTaskResponse response = taskService.updateTaskStatus(taskId, request, technicianId);
+        LocalDateTime afterUpdate = LocalDateTime.now();
+        
+        assertNotNull(response.getStartedAt());
+        assertTrue(response.getStartedAt().isAfter(beforeUpdate.minusSeconds(1)));
+        assertTrue(response.getStartedAt().isBefore(afterUpdate.plusSeconds(1)));
+        
+        ArgumentCaptor<ServiceTask> taskCaptor = ArgumentCaptor.forClass(ServiceTask.class);
+        verify(taskRepository).save(taskCaptor.capture());
+        
+        ServiceTask savedTask = taskCaptor.getValue();
+        assertEquals(TaskStatus.IN_PROGRESS, savedTask.getStatus());
+        assertNotNull(savedTask.getStartedAt());
+    }
+    
+    @Test
+    void testUpdateTaskStatusReturnsAssignedAtFromAssignment() {
+        Long taskId = 1L;
+        Long technicianId = 101L;
+        LocalDateTime assignedTime = LocalDateTime.now().minusHours(2);
+        
+        ServiceTask task = ServiceTask.builder()
+                .id(taskId)
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.ASSIGNED)
+                .assignedTechnicianId(technicianId)
+                .createdBy("dispatcher@fsm.com")
+                .createdAt(LocalDateTime.now())
+                .build();
+        
+        Assignment assignment = Assignment.builder()
+                .id(1L)
+                .taskId(taskId)
+                .technicianId(technicianId)
+                .assignedAt(assignedTime)
+                .assignedBy("dispatcher@fsm.com")
+                .status(AssignmentStatus.ACTIVE)
+                .build();
+        
+        UpdateTaskStatusRequest request = UpdateTaskStatusRequest.builder()
+                .status(TaskStatus.IN_PROGRESS)
+                .build();
+        
+        when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+        when(taskRepository.save(any(ServiceTask.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(assignmentRepository.findActiveAssignmentForTask(taskId)).thenReturn(Optional.of(assignment));
+        
+        TechnicianTaskResponse response = taskService.updateTaskStatus(taskId, request, technicianId);
+        
+        assertEquals(assignedTime, response.getAssignedAt());
     }
 }

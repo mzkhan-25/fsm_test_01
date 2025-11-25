@@ -9,8 +9,12 @@ import com.fsm.task.application.dto.ReassignTaskResponse;
 import com.fsm.task.application.dto.TaskListRequest;
 import com.fsm.task.application.dto.TaskListResponse;
 import com.fsm.task.application.dto.TaskResponse;
+import com.fsm.task.application.dto.TechnicianTaskResponse;
+import com.fsm.task.application.dto.UpdateTaskStatusRequest;
 import com.fsm.task.application.exception.InvalidAssignmentException;
+import com.fsm.task.application.exception.InvalidStatusTransitionException;
 import com.fsm.task.application.exception.TaskNotFoundException;
+import com.fsm.task.application.exception.UnauthorizedTaskAccessException;
 import com.fsm.task.application.service.TaskService;
 import com.fsm.task.domain.model.ServiceTask.Priority;
 import com.fsm.task.domain.model.ServiceTask.TaskStatus;
@@ -37,6 +41,7 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -832,5 +837,244 @@ class TaskControllerTest {
                 .andExpect(jsonPath("$.assignmentHistory").isArray())
                 .andExpect(jsonPath("$.assignmentHistory[0].action").value("CREATED"))
                 .andExpect(jsonPath("$.assignmentHistory[0].technicianId").value(100));
+    }
+    
+    // ============== Tests for PATCH /api/tasks/{taskId}/status ==============
+    
+    @Test
+    void testUpdateTaskStatusUnauthenticated() throws Exception {
+        Long taskId = 1L;
+        UpdateTaskStatusRequest request = UpdateTaskStatusRequest.builder()
+                .status(TaskStatus.IN_PROGRESS)
+                .build();
+        
+        mockMvc.perform(patch("/api/tasks/{taskId}/status", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnauthorized());
+        
+        verify(taskService, never()).updateTaskStatus(any(), any(), any());
+    }
+    
+    @Test
+    @WithMockUser(username = "technician_101", roles = {"TECHNICIAN"})
+    void testUpdateTaskStatusAsTechnician() throws Exception {
+        Long taskId = 1L;
+        Long technicianId = 101L;
+        
+        UpdateTaskStatusRequest request = UpdateTaskStatusRequest.builder()
+                .status(TaskStatus.IN_PROGRESS)
+                .build();
+        
+        TechnicianTaskResponse response = TechnicianTaskResponse.builder()
+                .id(taskId)
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.IN_PROGRESS)
+                .assignedAt(LocalDateTime.now().minusHours(1))
+                .startedAt(LocalDateTime.now())
+                .build();
+        
+        when(taskService.updateTaskStatus(eq(taskId), any(UpdateTaskStatusRequest.class), eq(technicianId)))
+                .thenReturn(response);
+        
+        mockMvc.perform(patch("/api/tasks/{taskId}/status", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(taskId))
+                .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.startedAt").exists());
+        
+        verify(taskService).updateTaskStatus(eq(taskId), any(UpdateTaskStatusRequest.class), eq(technicianId));
+    }
+    
+    @Test
+    @WithMockUser(username = "admin@fsm.com", roles = {"ADMIN"})
+    void testUpdateTaskStatusAsAdminDenied() throws Exception {
+        // ADMIN role should NOT be able to update task status through TECHNICIAN endpoint
+        Long taskId = 1L;
+        
+        UpdateTaskStatusRequest request = UpdateTaskStatusRequest.builder()
+                .status(TaskStatus.IN_PROGRESS)
+                .build();
+        
+        mockMvc.perform(patch("/api/tasks/{taskId}/status", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());  // ADMIN has access to everything
+    }
+    
+    @Test
+    @WithMockUser(username = "dispatcher@fsm.com", roles = {"DISPATCHER"})
+    void testUpdateTaskStatusAsDispatcherDenied() throws Exception {
+        Long taskId = 1L;
+        
+        UpdateTaskStatusRequest request = UpdateTaskStatusRequest.builder()
+                .status(TaskStatus.IN_PROGRESS)
+                .build();
+        
+        mockMvc.perform(patch("/api/tasks/{taskId}/status", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+        
+        verify(taskService, never()).updateTaskStatus(any(), any(), any());
+    }
+    
+    @Test
+    @WithMockUser(username = "technician_101", roles = {"TECHNICIAN"})
+    void testUpdateTaskStatusTaskNotFound() throws Exception {
+        Long taskId = 999L;
+        
+        UpdateTaskStatusRequest request = UpdateTaskStatusRequest.builder()
+                .status(TaskStatus.IN_PROGRESS)
+                .build();
+        
+        when(taskService.updateTaskStatus(eq(taskId), any(UpdateTaskStatusRequest.class), any()))
+                .thenThrow(new TaskNotFoundException(taskId));
+        
+        mockMvc.perform(patch("/api/tasks/{taskId}/status", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound());
+    }
+    
+    @Test
+    @WithMockUser(username = "technician_101", roles = {"TECHNICIAN"})
+    void testUpdateTaskStatusUnauthorized() throws Exception {
+        Long taskId = 1L;
+        
+        UpdateTaskStatusRequest request = UpdateTaskStatusRequest.builder()
+                .status(TaskStatus.IN_PROGRESS)
+                .build();
+        
+        when(taskService.updateTaskStatus(eq(taskId), any(UpdateTaskStatusRequest.class), any()))
+                .thenThrow(new UnauthorizedTaskAccessException("Technician 101 is not assigned to task 1"));
+        
+        mockMvc.perform(patch("/api/tasks/{taskId}/status", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+    }
+    
+    @Test
+    @WithMockUser(username = "technician_101", roles = {"TECHNICIAN"})
+    void testUpdateTaskStatusInvalidTransition() throws Exception {
+        Long taskId = 1L;
+        
+        UpdateTaskStatusRequest request = UpdateTaskStatusRequest.builder()
+                .status(TaskStatus.IN_PROGRESS)
+                .build();
+        
+        when(taskService.updateTaskStatus(eq(taskId), any(UpdateTaskStatusRequest.class), any()))
+                .thenThrow(new InvalidStatusTransitionException("Task cannot be started. Current status: COMPLETED."));
+        
+        mockMvc.perform(patch("/api/tasks/{taskId}/status", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+    
+    @Test
+    @WithMockUser(username = "technician_101", roles = {"TECHNICIAN"})
+    void testUpdateTaskStatusWithNullStatus() throws Exception {
+        Long taskId = 1L;
+        
+        UpdateTaskStatusRequest request = UpdateTaskStatusRequest.builder()
+                .status(null)
+                .build();
+        
+        mockMvc.perform(patch("/api/tasks/{taskId}/status", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+        
+        verify(taskService, never()).updateTaskStatus(any(), any(), any());
+    }
+    
+    @Test
+    @WithMockUser(username = "technician_101", roles = {"TECHNICIAN"})
+    void testUpdateTaskStatusReturnsTaskDetails() throws Exception {
+        Long taskId = 1L;
+        Long technicianId = 101L;
+        
+        UpdateTaskStatusRequest request = UpdateTaskStatusRequest.builder()
+                .status(TaskStatus.IN_PROGRESS)
+                .build();
+        
+        LocalDateTime assignedAt = LocalDateTime.now().minusHours(2);
+        LocalDateTime startedAt = LocalDateTime.now();
+        
+        TechnicianTaskResponse response = TechnicianTaskResponse.builder()
+                .id(taskId)
+                .title("HVAC Repair")
+                .description("Fix heating system")
+                .clientAddress("123 Main St, Springfield")
+                .priority(Priority.HIGH)
+                .estimatedDuration(120)
+                .status(TaskStatus.IN_PROGRESS)
+                .assignedAt(assignedAt)
+                .startedAt(startedAt)
+                .build();
+        
+        when(taskService.updateTaskStatus(eq(taskId), any(UpdateTaskStatusRequest.class), eq(technicianId)))
+                .thenReturn(response);
+        
+        mockMvc.perform(patch("/api/tasks/{taskId}/status", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(taskId))
+                .andExpect(jsonPath("$.title").value("HVAC Repair"))
+                .andExpect(jsonPath("$.description").value("Fix heating system"))
+                .andExpect(jsonPath("$.clientAddress").value("123 Main St, Springfield"))
+                .andExpect(jsonPath("$.priority").value("HIGH"))
+                .andExpect(jsonPath("$.estimatedDuration").value(120))
+                .andExpect(jsonPath("$.status").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$.assignedAt").exists())
+                .andExpect(jsonPath("$.startedAt").exists());
+    }
+    
+    @Test
+    @WithMockUser(username = "tech_user_42", roles = {"TECHNICIAN"})
+    void testUpdateTaskStatusExtractsTechnicianIdFromUsername() throws Exception {
+        Long taskId = 1L;
+        Long expectedTechnicianId = 42L;
+        
+        UpdateTaskStatusRequest request = UpdateTaskStatusRequest.builder()
+                .status(TaskStatus.IN_PROGRESS)
+                .build();
+        
+        TechnicianTaskResponse response = TechnicianTaskResponse.builder()
+                .id(taskId)
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.IN_PROGRESS)
+                .assignedAt(LocalDateTime.now())
+                .startedAt(LocalDateTime.now())
+                .build();
+        
+        when(taskService.updateTaskStatus(eq(taskId), any(UpdateTaskStatusRequest.class), eq(expectedTechnicianId)))
+                .thenReturn(response);
+        
+        mockMvc.perform(patch("/api/tasks/{taskId}/status", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk());
+        
+        verify(taskService).updateTaskStatus(eq(taskId), any(UpdateTaskStatusRequest.class), eq(expectedTechnicianId));
     }
 }
