@@ -4,6 +4,7 @@ import com.fsm.task.domain.model.ServiceTask;
 import com.fsm.task.domain.model.ServiceTask.Priority;
 import com.fsm.task.domain.model.ServiceTask.TaskStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
@@ -16,9 +17,10 @@ import java.util.List;
  * Spring Data JPA repository for ServiceTask entity.
  * Provides database persistence operations for service tasks.
  * Inherits CRUD operations from JpaRepository: create, findById, findAll, update, delete.
+ * Also extends JpaSpecificationExecutor for dynamic query support.
  */
 @Repository
-public interface TaskRepository extends JpaRepository<ServiceTask, Long> {
+public interface TaskRepository extends JpaRepository<ServiceTask, Long>, JpaSpecificationExecutor<ServiceTask> {
     
     /**
      * Find tasks by status (uses idx_service_tasks_status index)

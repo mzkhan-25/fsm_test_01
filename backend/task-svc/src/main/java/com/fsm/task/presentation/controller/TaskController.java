@@ -1,11 +1,16 @@
 package com.fsm.task.presentation.controller;
 
 import com.fsm.task.application.dto.CreateTaskRequest;
+import com.fsm.task.application.dto.TaskListRequest;
+import com.fsm.task.application.dto.TaskListResponse;
 import com.fsm.task.application.dto.TaskResponse;
 import com.fsm.task.application.service.TaskService;
+import com.fsm.task.domain.model.ServiceTask.Priority;
+import com.fsm.task.domain.model.ServiceTask.TaskStatus;
 import com.fsm.task.infrastructure.security.RequireRole;
 import com.fsm.task.infrastructure.security.Role;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -33,6 +38,95 @@ import org.springframework.web.bind.annotation.*;
 public class TaskController {
     
     private final TaskService taskService;
+    
+    /**
+     * Retrieves a list of tasks with filtering, sorting, and pagination.
+     * Supports filtering by status, priority, and search term.
+     * Default sorting is by priority (desc) and createdAt (desc).
+     * Default page size is 50.
+     * 
+     * @param status filter by task status (optional)
+     * @param priority filter by task priority (optional)
+     * @param search search term for title, id, and client address (optional)
+     * @param sortBy field to sort by: priority, createdAt, status (default: priority)
+     * @param sortOrder sort order: asc or desc (default: desc)
+     * @param page page number, 0-based (default: 0)
+     * @param pageSize number of items per page (default: 50, max: 100)
+     * @return ResponseEntity with task list, pagination info, and status counts
+     */
+    @GetMapping
+    @Operation(
+            summary = "Get task list",
+            description = "Retrieves tasks with optional filtering by status, priority, and search. " +
+                    "Supports sorting by priority, createdAt, or status. " +
+                    "Returns paginated results with status counts in metadata.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Tasks retrieved successfully",
+                    content = @Content(schema = @Schema(implementation = TaskListResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid request parameters",
+                    content = @Content
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Unauthorized - authentication required",
+                    content = @Content
+            )
+    })
+    public ResponseEntity<TaskListResponse> getTasks(
+            @Parameter(description = "Filter by task status", example = "UNASSIGNED")
+            @RequestParam(required = false) TaskStatus status,
+            
+            @Parameter(description = "Filter by task priority", example = "HIGH")
+            @RequestParam(required = false) Priority priority,
+            
+            @Parameter(description = "Search term for title, id, and client address (case-insensitive)", example = "HVAC")
+            @RequestParam(required = false) String search,
+            
+            @Parameter(description = "Field to sort by: priority, createdAt, status", example = "priority")
+            @RequestParam(required = false, defaultValue = "priority") String sortBy,
+            
+            @Parameter(description = "Sort order: asc or desc", example = "desc")
+            @RequestParam(required = false, defaultValue = "desc") String sortOrder,
+            
+            @Parameter(description = "Page number (0-based)", example = "0")
+            @RequestParam(required = false, defaultValue = "0") Integer page,
+            
+            @Parameter(description = "Number of items per page (max 100)", example = "50")
+            @RequestParam(required = false, defaultValue = "50") Integer pageSize
+    ) {
+        log.info("Received request to get tasks - status: {}, priority: {}, search: {}", status, priority, search);
+        
+        // Validate and cap pageSize
+        if (pageSize > 100) {
+            pageSize = 100;
+        }
+        if (pageSize < 1) {
+            pageSize = 50;
+        }
+        if (page < 0) {
+            page = 0;
+        }
+        
+        TaskListRequest request = TaskListRequest.builder()
+                .status(status)
+                .priority(priority)
+                .search(search)
+                .sortBy(sortBy)
+                .sortOrder(sortOrder)
+                .page(page)
+                .pageSize(pageSize)
+                .build();
+        
+        TaskListResponse response = taskService.getTasks(request);
+        return ResponseEntity.ok(response);
+    }
     
     /**
      * Creates a new service task.
