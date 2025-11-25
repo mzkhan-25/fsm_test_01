@@ -3,6 +3,8 @@ package com.fsm.task.presentation.controller;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fsm.task.application.dto.AssignTaskRequest;
 import com.fsm.task.application.dto.AssignTaskResponse;
+import com.fsm.task.application.dto.CompleteTaskRequest;
+import com.fsm.task.application.dto.CompleteTaskResponse;
 import com.fsm.task.application.dto.CreateTaskRequest;
 import com.fsm.task.application.dto.ReassignTaskRequest;
 import com.fsm.task.application.dto.ReassignTaskResponse;
@@ -1076,5 +1078,190 @@ class TaskControllerTest {
                 .andExpect(status().isOk());
         
         verify(taskService).updateTaskStatus(eq(taskId), any(UpdateTaskStatusRequest.class), eq(expectedTechnicianId));
+    }
+    
+    // ========== CompleteTask Tests ==========
+    
+    @Test
+    @WithMockUser(username = "technician_101", roles = {"TECHNICIAN"})
+    void testCompleteTaskSuccessfully() throws Exception {
+        Long taskId = 1L;
+        CompleteTaskRequest request = CompleteTaskRequest.builder()
+                .workSummary("Replaced faulty HVAC compressor and tested system")
+                .build();
+        
+        CompleteTaskResponse response = CompleteTaskResponse.builder()
+                .id(taskId)
+                .title("Test Task")
+                .description("Test Description")
+                .clientAddress("123 Main St")
+                .priority(Priority.HIGH)
+                .estimatedDuration(120)
+                .status(TaskStatus.COMPLETED)
+                .assignedAt(LocalDateTime.now().minusHours(3))
+                .startedAt(LocalDateTime.now().minusHours(2))
+                .completedAt(LocalDateTime.now())
+                .workSummary("Replaced faulty HVAC compressor and tested system")
+                .actualDurationMinutes(120L)
+                .build();
+        
+        when(taskService.completeTask(eq(taskId), any(CompleteTaskRequest.class), eq(101L)))
+                .thenReturn(response);
+        
+        mockMvc.perform(post("/api/tasks/{taskId}/complete", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(taskId))
+                .andExpect(jsonPath("$.status").value("COMPLETED"))
+                .andExpect(jsonPath("$.workSummary").value("Replaced faulty HVAC compressor and tested system"))
+                .andExpect(jsonPath("$.actualDurationMinutes").value(120));
+        
+        verify(taskService).completeTask(eq(taskId), any(CompleteTaskRequest.class), eq(101L));
+    }
+    
+    @Test
+    @WithMockUser(username = "technician_101", roles = {"TECHNICIAN"})
+    void testCompleteTaskWithInvalidWorkSummary() throws Exception {
+        Long taskId = 1L;
+        CompleteTaskRequest request = CompleteTaskRequest.builder()
+                .workSummary("Short")  // Less than 10 characters
+                .build();
+        
+        mockMvc.perform(post("/api/tasks/{taskId}/complete", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+        
+        verify(taskService, never()).completeTask(any(), any(), any());
+    }
+    
+    @Test
+    @WithMockUser(username = "technician_101", roles = {"TECHNICIAN"})
+    void testCompleteTaskWithEmptyWorkSummary() throws Exception {
+        Long taskId = 1L;
+        CompleteTaskRequest request = CompleteTaskRequest.builder()
+                .workSummary("")
+                .build();
+        
+        mockMvc.perform(post("/api/tasks/{taskId}/complete", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+        
+        verify(taskService, never()).completeTask(any(), any(), any());
+    }
+    
+    @Test
+    @WithMockUser(username = "technician_101", roles = {"TECHNICIAN"})
+    void testCompleteTaskWithNullWorkSummary() throws Exception {
+        Long taskId = 1L;
+        CompleteTaskRequest request = CompleteTaskRequest.builder()
+                .workSummary(null)
+                .build();
+        
+        mockMvc.perform(post("/api/tasks/{taskId}/complete", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+        
+        verify(taskService, never()).completeTask(any(), any(), any());
+    }
+    
+    @Test
+    @WithMockUser(username = "technician_101", roles = {"TECHNICIAN"})
+    void testCompleteTaskNotFound() throws Exception {
+        Long taskId = 999L;
+        CompleteTaskRequest request = CompleteTaskRequest.builder()
+                .workSummary("Work completed successfully")
+                .build();
+        
+        when(taskService.completeTask(eq(taskId), any(CompleteTaskRequest.class), eq(101L)))
+                .thenThrow(new TaskNotFoundException(taskId));
+        
+        mockMvc.perform(post("/api/tasks/{taskId}/complete", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isNotFound());
+        
+        verify(taskService).completeTask(eq(taskId), any(CompleteTaskRequest.class), eq(101L));
+    }
+    
+    @Test
+    @WithMockUser(username = "technician_101", roles = {"TECHNICIAN"})
+    void testCompleteTaskUnauthorized() throws Exception {
+        Long taskId = 1L;
+        CompleteTaskRequest request = CompleteTaskRequest.builder()
+                .workSummary("Work completed successfully")
+                .build();
+        
+        when(taskService.completeTask(eq(taskId), any(CompleteTaskRequest.class), eq(101L)))
+                .thenThrow(new UnauthorizedTaskAccessException("Technician not assigned to task"));
+        
+        mockMvc.perform(post("/api/tasks/{taskId}/complete", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+        
+        verify(taskService).completeTask(eq(taskId), any(CompleteTaskRequest.class), eq(101L));
+    }
+    
+    @Test
+    @WithMockUser(username = "technician_101", roles = {"TECHNICIAN"})
+    void testCompleteTaskInvalidStatus() throws Exception {
+        Long taskId = 1L;
+        CompleteTaskRequest request = CompleteTaskRequest.builder()
+                .workSummary("Work completed successfully")
+                .build();
+        
+        when(taskService.completeTask(eq(taskId), any(CompleteTaskRequest.class), eq(101L)))
+                .thenThrow(new InvalidStatusTransitionException("Task must be IN_PROGRESS to complete"));
+        
+        mockMvc.perform(post("/api/tasks/{taskId}/complete", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+        
+        verify(taskService).completeTask(eq(taskId), any(CompleteTaskRequest.class), eq(101L));
+    }
+    
+    @Test
+    @WithMockUser(username = "dispatcher@example.com", roles = {"DISPATCHER"})
+    void testCompleteTaskRequiresTechnicianRole() throws Exception {
+        Long taskId = 1L;
+        CompleteTaskRequest request = CompleteTaskRequest.builder()
+                .workSummary("Work completed successfully")
+                .build();
+        
+        mockMvc.perform(post("/api/tasks/{taskId}/complete", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isForbidden());
+        
+        verify(taskService, never()).completeTask(any(), any(), any());
+    }
+    
+    @Test
+    void testCompleteTaskRequiresAuthentication() throws Exception {
+        Long taskId = 1L;
+        CompleteTaskRequest request = CompleteTaskRequest.builder()
+                .workSummary("Work completed successfully")
+                .build();
+        
+        mockMvc.perform(post("/api/tasks/{taskId}/complete", taskId)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnauthorized());
+        
+        verify(taskService, never()).completeTask(any(), any(), any());
     }
 }

@@ -2,6 +2,8 @@ package com.fsm.task.application.service;
 
 import com.fsm.task.application.dto.AssignTaskRequest;
 import com.fsm.task.application.dto.AssignTaskResponse;
+import com.fsm.task.application.dto.CompleteTaskRequest;
+import com.fsm.task.application.dto.CompleteTaskResponse;
 import com.fsm.task.application.dto.CreateTaskRequest;
 import com.fsm.task.application.dto.ReassignTaskRequest;
 import com.fsm.task.application.dto.ReassignTaskResponse;
@@ -1537,5 +1539,216 @@ class TaskServiceTest {
         TechnicianTaskResponse response = taskService.updateTaskStatus(taskId, request, technicianId);
         
         assertEquals(assignedTime, response.getAssignedAt());
+    }
+    
+    // ========== CompleteTask Tests ==========
+    
+    @Test
+    void testCompleteTaskSuccessfully() {
+        Long taskId = 1L;
+        Long technicianId = 101L;
+        String workSummary = "Replaced faulty HVAC compressor and tested system";
+        CompleteTaskRequest request = CompleteTaskRequest.builder()
+                .workSummary(workSummary)
+                .build();
+        
+        LocalDateTime startedAt = LocalDateTime.now().minusHours(2);
+        ServiceTask task = ServiceTask.builder()
+                .id(taskId)
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.IN_PROGRESS)
+                .assignedTechnicianId(technicianId)
+                .startedAt(startedAt)
+                .build();
+        
+        LocalDateTime assignedAt = LocalDateTime.now().minusHours(3);
+        Assignment assignment = Assignment.builder()
+                .id(1L)
+                .taskId(taskId)
+                .technicianId(technicianId)
+                .assignedAt(assignedAt)
+                .status(AssignmentStatus.ACTIVE)
+                .build();
+        
+        when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+        when(taskRepository.save(any(ServiceTask.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(assignmentRepository.findActiveAssignmentForTask(taskId)).thenReturn(Optional.of(assignment));
+        
+        CompleteTaskResponse response = taskService.completeTask(taskId, request, technicianId);
+        
+        assertNotNull(response);
+        assertEquals(taskId, response.getId());
+        assertEquals(TaskStatus.COMPLETED, response.getStatus());
+        assertEquals(workSummary, response.getWorkSummary());
+        assertNotNull(response.getCompletedAt());
+        assertNotNull(response.getActualDurationMinutes());
+        assertTrue(response.getActualDurationMinutes() > 0);
+        
+        verify(taskRepository).findById(taskId);
+        verify(taskRepository).save(any(ServiceTask.class));
+        
+        ArgumentCaptor<ServiceTask> taskCaptor = ArgumentCaptor.forClass(ServiceTask.class);
+        verify(taskRepository).save(taskCaptor.capture());
+        ServiceTask savedTask = taskCaptor.getValue();
+        assertEquals(TaskStatus.COMPLETED, savedTask.getStatus());
+        assertEquals(workSummary, savedTask.getWorkSummary());
+        assertNotNull(savedTask.getCompletedAt());
+    }
+    
+    @Test
+    void testCompleteTaskNotFound() {
+        Long taskId = 999L;
+        Long technicianId = 101L;
+        CompleteTaskRequest request = CompleteTaskRequest.builder()
+                .workSummary("Work completed successfully")
+                .build();
+        
+        when(taskRepository.findById(taskId)).thenReturn(Optional.empty());
+        
+        assertThrows(TaskNotFoundException.class, () -> 
+            taskService.completeTask(taskId, request, technicianId));
+        
+        verify(taskRepository).findById(taskId);
+        verify(taskRepository, never()).save(any(ServiceTask.class));
+    }
+    
+    @Test
+    void testCompleteTaskUnauthorizedTechnician() {
+        Long taskId = 1L;
+        Long technicianId = 101L;
+        Long assignedTechnicianId = 102L; // Different technician
+        CompleteTaskRequest request = CompleteTaskRequest.builder()
+                .workSummary("Work completed successfully")
+                .build();
+        
+        ServiceTask task = ServiceTask.builder()
+                .id(taskId)
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.IN_PROGRESS)
+                .assignedTechnicianId(assignedTechnicianId)
+                .build();
+        
+        when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+        
+        assertThrows(UnauthorizedTaskAccessException.class, () -> 
+            taskService.completeTask(taskId, request, technicianId));
+        
+        verify(taskRepository).findById(taskId);
+        verify(taskRepository, never()).save(any(ServiceTask.class));
+    }
+    
+    @Test
+    void testCompleteTaskNotInProgress() {
+        Long taskId = 1L;
+        Long technicianId = 101L;
+        CompleteTaskRequest request = CompleteTaskRequest.builder()
+                .workSummary("Work completed successfully")
+                .build();
+        
+        ServiceTask task = ServiceTask.builder()
+                .id(taskId)
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.ASSIGNED) // Not IN_PROGRESS
+                .assignedTechnicianId(technicianId)
+                .build();
+        
+        when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+        
+        assertThrows(InvalidStatusTransitionException.class, () -> 
+            taskService.completeTask(taskId, request, technicianId));
+        
+        verify(taskRepository).findById(taskId);
+        verify(taskRepository, never()).save(any(ServiceTask.class));
+    }
+    
+    @Test
+    void testCompleteTaskCalculatesDuration() {
+        Long taskId = 1L;
+        Long technicianId = 101L;
+        CompleteTaskRequest request = CompleteTaskRequest.builder()
+                .workSummary("Work completed successfully with duration check")
+                .build();
+        
+        LocalDateTime startedAt = LocalDateTime.now().minusMinutes(120); // Started 2 hours ago
+        ServiceTask task = ServiceTask.builder()
+                .id(taskId)
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.IN_PROGRESS)
+                .assignedTechnicianId(technicianId)
+                .startedAt(startedAt)
+                .build();
+        
+        LocalDateTime assignedAt = LocalDateTime.now().minusHours(3);
+        Assignment assignment = Assignment.builder()
+                .id(1L)
+                .taskId(taskId)
+                .technicianId(technicianId)
+                .assignedAt(assignedAt)
+                .status(AssignmentStatus.ACTIVE)
+                .build();
+        
+        when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+        when(taskRepository.save(any(ServiceTask.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(assignmentRepository.findActiveAssignmentForTask(taskId)).thenReturn(Optional.of(assignment));
+        
+        CompleteTaskResponse response = taskService.completeTask(taskId, request, technicianId);
+        
+        assertNotNull(response.getActualDurationMinutes());
+        // Duration should be approximately 120 minutes (allow some variance for test execution time)
+        assertTrue(response.getActualDurationMinutes() >= 119 && response.getActualDurationMinutes() <= 121);
+    }
+    
+    @Test
+    void testCompleteTaskUpdatesAllFields() {
+        Long taskId = 1L;
+        Long technicianId = 101L;
+        String workSummary = "Detailed work summary with all steps performed";
+        CompleteTaskRequest request = CompleteTaskRequest.builder()
+                .workSummary(workSummary)
+                .build();
+        
+        ServiceTask task = ServiceTask.builder()
+                .id(taskId)
+                .title("Test Task")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.IN_PROGRESS)
+                .assignedTechnicianId(technicianId)
+                .startedAt(LocalDateTime.now().minusHours(1))
+                .build();
+        
+        Assignment assignment = Assignment.builder()
+                .id(1L)
+                .taskId(taskId)
+                .technicianId(technicianId)
+                .assignedAt(LocalDateTime.now().minusHours(2))
+                .status(AssignmentStatus.ACTIVE)
+                .build();
+        
+        when(taskRepository.findById(taskId)).thenReturn(Optional.of(task));
+        when(taskRepository.save(any(ServiceTask.class))).thenAnswer(inv -> inv.getArgument(0));
+        when(assignmentRepository.findActiveAssignmentForTask(taskId)).thenReturn(Optional.of(assignment));
+        
+        CompleteTaskResponse response = taskService.completeTask(taskId, request, technicianId);
+        
+        // Verify all response fields
+        assertNotNull(response.getId());
+        assertNotNull(response.getTitle());
+        assertNotNull(response.getClientAddress());
+        assertNotNull(response.getPriority());
+        assertEquals(TaskStatus.COMPLETED, response.getStatus());
+        assertNotNull(response.getStartedAt());
+        assertNotNull(response.getCompletedAt());
+        assertEquals(workSummary, response.getWorkSummary());
+        assertNotNull(response.getActualDurationMinutes());
+        assertNotNull(response.getAssignedAt());
     }
 }
