@@ -93,6 +93,42 @@ public interface TaskRepository extends JpaRepository<ServiceTask, Long>, JpaSpe
     }
     
     /**
+     * Find tasks assigned to a specific technician
+     * @param technicianId The technician's ID
+     * @return List of tasks assigned to the technician
+     */
+    List<ServiceTask> findByAssignedTechnicianId(Long technicianId);
+    
+    /**
+     * Find tasks assigned to a specific technician with a specific status
+     * @param technicianId The technician's ID
+     * @param status The task status to filter by
+     * @return List of tasks assigned to the technician with the specified status
+     */
+    List<ServiceTask> findByAssignedTechnicianIdAndStatus(Long technicianId, TaskStatus status);
+    
+    /**
+     * Find tasks assigned to a specific technician ordered by priority (HIGH first) and assigned at
+     * Uses custom query for proper priority ordering
+     * @param technicianId The technician's ID
+     * @return List of tasks assigned to the technician ordered by priority
+     */
+    @Query("SELECT t FROM ServiceTask t WHERE t.assignedTechnicianId = :technicianId ORDER BY " +
+           "CASE t.priority WHEN 'HIGH' THEN 1 WHEN 'MEDIUM' THEN 2 WHEN 'LOW' THEN 3 END, t.createdAt DESC")
+    List<ServiceTask> findByTechnicianIdOrderedByPriority(@Param("technicianId") Long technicianId);
+    
+    /**
+     * Find tasks assigned to a specific technician with a specific status, ordered by priority (HIGH first)
+     * Uses custom query for proper priority ordering
+     * @param technicianId The technician's ID
+     * @param status The task status to filter by
+     * @return List of tasks assigned to the technician with the specified status, ordered by priority
+     */
+    @Query("SELECT t FROM ServiceTask t WHERE t.assignedTechnicianId = :technicianId AND t.status = :status ORDER BY " +
+           "CASE t.priority WHEN 'HIGH' THEN 1 WHEN 'MEDIUM' THEN 2 WHEN 'LOW' THEN 3 END, t.createdAt DESC")
+    List<ServiceTask> findByTechnicianIdAndStatusOrderedByPriority(@Param("technicianId") Long technicianId, @Param("status") TaskStatus status);
+    
+    /**
      * Returns hardcoded sample tasks for initial development
      * This method provides 6 sample tasks with various statuses and priorities
      */

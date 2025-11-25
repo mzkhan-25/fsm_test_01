@@ -6,6 +6,8 @@ import com.fsm.task.application.dto.CreateTaskRequest;
 import com.fsm.task.application.dto.TaskListRequest;
 import com.fsm.task.application.dto.TaskListResponse;
 import com.fsm.task.application.dto.TaskResponse;
+import com.fsm.task.application.dto.TechnicianTaskListResponse;
+import com.fsm.task.application.dto.TechnicianTaskResponse;
 import com.fsm.task.application.exception.InvalidAssignmentException;
 import com.fsm.task.application.exception.TaskNotFoundException;
 import com.fsm.task.application.exception.TechnicianNotFoundException;
@@ -942,6 +944,284 @@ class TaskServiceTest {
         
         // Verify that technician validation was called
         verify(technicianValidationService).validateTechnician(technicianId);
+    }
+    
+    // ============== Tests for getTechnicianTasks ==============
+    
+    @Test
+    void testGetTechnicianTasksReturnsEmptyListWhenNoTasks() {
+        Long technicianId = 101L;
+        when(taskRepository.findByTechnicianIdOrderedByPriority(technicianId)).thenReturn(Collections.emptyList());
+        
+        TechnicianTaskListResponse response = taskService.getTechnicianTasks(technicianId, "all");
+        
+        assertNotNull(response);
+        assertTrue(response.getTasks().isEmpty());
+        assertEquals(0, response.getTotalTasks());
+    }
+    
+    @Test
+    void testGetTechnicianTasksReturnsAssignedTasks() {
+        Long technicianId = 101L;
+        ServiceTask task1 = createTechnicianTask(1L, "Task 1", Priority.HIGH, TaskStatus.ASSIGNED, technicianId);
+        ServiceTask task2 = createTechnicianTask(2L, "Task 2", Priority.MEDIUM, TaskStatus.ASSIGNED, technicianId);
+        
+        when(taskRepository.findByTechnicianIdOrderedByPriority(technicianId))
+                .thenReturn(Arrays.asList(task1, task2));
+        when(assignmentRepository.findActiveAssignmentForTask(any())).thenReturn(Optional.empty());
+        
+        TechnicianTaskListResponse response = taskService.getTechnicianTasks(technicianId, "all");
+        
+        assertNotNull(response);
+        assertEquals(2, response.getTasks().size());
+        assertEquals(2, response.getTotalTasks());
+        assertEquals("Task 1", response.getTasks().get(0).getTitle());
+        assertEquals("Task 2", response.getTasks().get(1).getTitle());
+    }
+    
+    @Test
+    void testGetTechnicianTasksWithStatusFilterAssigned() {
+        Long technicianId = 101L;
+        ServiceTask task = createTechnicianTask(1L, "Assigned Task", Priority.HIGH, TaskStatus.ASSIGNED, technicianId);
+        
+        when(taskRepository.findByTechnicianIdAndStatusOrderedByPriority(technicianId, TaskStatus.ASSIGNED))
+                .thenReturn(Collections.singletonList(task));
+        when(assignmentRepository.findActiveAssignmentForTask(any())).thenReturn(Optional.empty());
+        
+        TechnicianTaskListResponse response = taskService.getTechnicianTasks(technicianId, "assigned");
+        
+        assertNotNull(response);
+        assertEquals(1, response.getTasks().size());
+        assertEquals(TaskStatus.ASSIGNED, response.getTasks().get(0).getStatus());
+        
+        verify(taskRepository).findByTechnicianIdAndStatusOrderedByPriority(technicianId, TaskStatus.ASSIGNED);
+    }
+    
+    @Test
+    void testGetTechnicianTasksWithStatusFilterInProgress() {
+        Long technicianId = 101L;
+        ServiceTask task = createTechnicianTask(1L, "In Progress Task", Priority.MEDIUM, TaskStatus.IN_PROGRESS, technicianId);
+        
+        when(taskRepository.findByTechnicianIdAndStatusOrderedByPriority(technicianId, TaskStatus.IN_PROGRESS))
+                .thenReturn(Collections.singletonList(task));
+        when(assignmentRepository.findActiveAssignmentForTask(any())).thenReturn(Optional.empty());
+        
+        TechnicianTaskListResponse response = taskService.getTechnicianTasks(technicianId, "in_progress");
+        
+        assertNotNull(response);
+        assertEquals(1, response.getTasks().size());
+        assertEquals(TaskStatus.IN_PROGRESS, response.getTasks().get(0).getStatus());
+    }
+    
+    @Test
+    void testGetTechnicianTasksWithStatusFilterCompleted() {
+        Long technicianId = 101L;
+        // Completed today - should be included
+        ServiceTask completedToday = ServiceTask.builder()
+                .id(1L)
+                .title("Completed Today")
+                .clientAddress("123 Test St")
+                .priority(Priority.LOW)
+                .status(TaskStatus.COMPLETED)
+                .assignedTechnicianId(technicianId)
+                .createdBy("test@fsm.com")
+                .createdAt(LocalDateTime.now())
+                .build();
+        
+        when(taskRepository.findByTechnicianIdAndStatusOrderedByPriority(technicianId, TaskStatus.COMPLETED))
+                .thenReturn(Collections.singletonList(completedToday));
+        when(assignmentRepository.findByTaskIdAndStatus(1L, AssignmentStatus.COMPLETED)).thenReturn(Optional.empty());
+        when(assignmentRepository.findActiveAssignmentForTask(any())).thenReturn(Optional.empty());
+        
+        TechnicianTaskListResponse response = taskService.getTechnicianTasks(technicianId, "completed");
+        
+        assertNotNull(response);
+        assertEquals(1, response.getTasks().size());
+    }
+    
+    @Test
+    void testGetTechnicianTasksExcludesCompletedFromPreviousDays() {
+        Long technicianId = 101L;
+        // Completed yesterday - should be excluded
+        ServiceTask completedYesterday = ServiceTask.builder()
+                .id(1L)
+                .title("Completed Yesterday")
+                .clientAddress("123 Test St")
+                .priority(Priority.LOW)
+                .status(TaskStatus.COMPLETED)
+                .assignedTechnicianId(technicianId)
+                .createdBy("test@fsm.com")
+                .createdAt(LocalDateTime.now().minusDays(1))
+                .build();
+        
+        when(taskRepository.findByTechnicianIdOrderedByPriority(technicianId))
+                .thenReturn(Collections.singletonList(completedYesterday));
+        when(assignmentRepository.findByTaskIdAndStatus(1L, AssignmentStatus.COMPLETED)).thenReturn(Optional.empty());
+        
+        TechnicianTaskListResponse response = taskService.getTechnicianTasks(technicianId, "all");
+        
+        assertNotNull(response);
+        assertEquals(0, response.getTasks().size());
+    }
+    
+    @Test
+    void testGetTechnicianTasksIncludesNonCompletedFromPreviousDays() {
+        Long technicianId = 101L;
+        // Assigned yesterday - should be included
+        ServiceTask assignedYesterday = ServiceTask.builder()
+                .id(1L)
+                .title("Assigned Yesterday")
+                .clientAddress("123 Test St")
+                .priority(Priority.HIGH)
+                .status(TaskStatus.ASSIGNED)
+                .assignedTechnicianId(technicianId)
+                .createdBy("test@fsm.com")
+                .createdAt(LocalDateTime.now().minusDays(1))
+                .build();
+        
+        when(taskRepository.findByTechnicianIdOrderedByPriority(technicianId))
+                .thenReturn(Collections.singletonList(assignedYesterday));
+        when(assignmentRepository.findActiveAssignmentForTask(1L)).thenReturn(Optional.empty());
+        
+        TechnicianTaskListResponse response = taskService.getTechnicianTasks(technicianId, "all");
+        
+        assertNotNull(response);
+        assertEquals(1, response.getTasks().size());
+        assertEquals("Assigned Yesterday", response.getTasks().get(0).getTitle());
+    }
+    
+    @Test
+    void testGetTechnicianTasksWithNullStatusFilter() {
+        Long technicianId = 101L;
+        when(taskRepository.findByTechnicianIdOrderedByPriority(technicianId)).thenReturn(Collections.emptyList());
+        
+        TechnicianTaskListResponse response = taskService.getTechnicianTasks(technicianId, null);
+        
+        assertNotNull(response);
+        verify(taskRepository).findByTechnicianIdOrderedByPriority(technicianId);
+        verify(taskRepository, never()).findByTechnicianIdAndStatusOrderedByPriority(any(), any());
+    }
+    
+    @Test
+    void testGetTechnicianTasksWithEmptyStatusFilter() {
+        Long technicianId = 101L;
+        when(taskRepository.findByTechnicianIdOrderedByPriority(technicianId)).thenReturn(Collections.emptyList());
+        
+        TechnicianTaskListResponse response = taskService.getTechnicianTasks(technicianId, "");
+        
+        assertNotNull(response);
+        verify(taskRepository).findByTechnicianIdOrderedByPriority(technicianId);
+    }
+    
+    @Test
+    void testGetTechnicianTasksWithInvalidStatusFilterReturnsAll() {
+        Long technicianId = 101L;
+        when(taskRepository.findByTechnicianIdOrderedByPriority(technicianId)).thenReturn(Collections.emptyList());
+        
+        TechnicianTaskListResponse response = taskService.getTechnicianTasks(technicianId, "invalid_status");
+        
+        assertNotNull(response);
+        verify(taskRepository).findByTechnicianIdOrderedByPriority(technicianId);
+    }
+    
+    @Test
+    void testGetTechnicianTasksReturnsAssignedAtFromAssignment() {
+        Long technicianId = 101L;
+        LocalDateTime assignedTime = LocalDateTime.now().minusHours(2);
+        
+        ServiceTask task = createTechnicianTask(1L, "Test Task", Priority.HIGH, TaskStatus.ASSIGNED, technicianId);
+        
+        Assignment assignment = Assignment.builder()
+                .id(1L)
+                .taskId(1L)
+                .technicianId(technicianId)
+                .assignedAt(assignedTime)
+                .assignedBy("dispatcher@fsm.com")
+                .status(AssignmentStatus.ACTIVE)
+                .build();
+        
+        when(taskRepository.findByTechnicianIdOrderedByPriority(technicianId))
+                .thenReturn(Collections.singletonList(task));
+        when(assignmentRepository.findActiveAssignmentForTask(1L)).thenReturn(Optional.of(assignment));
+        
+        TechnicianTaskListResponse response = taskService.getTechnicianTasks(technicianId, "all");
+        
+        assertNotNull(response);
+        assertEquals(1, response.getTasks().size());
+        assertEquals(assignedTime, response.getTasks().get(0).getAssignedAt());
+    }
+    
+    @Test
+    void testGetTechnicianTasksReturnsTaskDetails() {
+        Long technicianId = 101L;
+        
+        ServiceTask task = ServiceTask.builder()
+                .id(1L)
+                .title("HVAC Repair")
+                .description("Fix heating unit")
+                .clientAddress("123 Main St, Springfield")
+                .priority(Priority.HIGH)
+                .estimatedDuration(120)
+                .status(TaskStatus.ASSIGNED)
+                .assignedTechnicianId(technicianId)
+                .createdBy("dispatcher@fsm.com")
+                .createdAt(LocalDateTime.now())
+                .build();
+        
+        when(taskRepository.findByTechnicianIdOrderedByPriority(technicianId))
+                .thenReturn(Collections.singletonList(task));
+        when(assignmentRepository.findActiveAssignmentForTask(1L)).thenReturn(Optional.empty());
+        
+        TechnicianTaskListResponse response = taskService.getTechnicianTasks(technicianId, "all");
+        
+        assertNotNull(response);
+        assertEquals(1, response.getTasks().size());
+        
+        TechnicianTaskResponse taskResponse = response.getTasks().get(0);
+        assertEquals(1L, taskResponse.getId());
+        assertEquals("HVAC Repair", taskResponse.getTitle());
+        assertEquals("Fix heating unit", taskResponse.getDescription());
+        assertEquals("123 Main St, Springfield", taskResponse.getClientAddress());
+        assertEquals(Priority.HIGH, taskResponse.getPriority());
+        assertEquals(120, taskResponse.getEstimatedDuration());
+        assertEquals(TaskStatus.ASSIGNED, taskResponse.getStatus());
+    }
+    
+    @Test
+    void testGetTechnicianTasksOrdersByPriority() {
+        Long technicianId = 101L;
+        
+        // Tasks are returned in priority order by the repository query
+        ServiceTask highPriority = createTechnicianTask(1L, "High Priority", Priority.HIGH, TaskStatus.ASSIGNED, technicianId);
+        ServiceTask mediumPriority = createTechnicianTask(2L, "Medium Priority", Priority.MEDIUM, TaskStatus.ASSIGNED, technicianId);
+        ServiceTask lowPriority = createTechnicianTask(3L, "Low Priority", Priority.LOW, TaskStatus.ASSIGNED, technicianId);
+        
+        when(taskRepository.findByTechnicianIdOrderedByPriority(technicianId))
+                .thenReturn(Arrays.asList(highPriority, mediumPriority, lowPriority));
+        when(assignmentRepository.findActiveAssignmentForTask(any())).thenReturn(Optional.empty());
+        
+        TechnicianTaskListResponse response = taskService.getTechnicianTasks(technicianId, "all");
+        
+        assertNotNull(response);
+        assertEquals(3, response.getTasks().size());
+        assertEquals(Priority.HIGH, response.getTasks().get(0).getPriority());
+        assertEquals(Priority.MEDIUM, response.getTasks().get(1).getPriority());
+        assertEquals(Priority.LOW, response.getTasks().get(2).getPriority());
+    }
+    
+    // Helper method to create technician tasks
+    private ServiceTask createTechnicianTask(Long id, String title, Priority priority, TaskStatus status, Long technicianId) {
+        return ServiceTask.builder()
+                .id(id)
+                .title(title)
+                .description("Test Description")
+                .clientAddress("123 Test St")
+                .priority(priority)
+                .status(status)
+                .assignedTechnicianId(technicianId)
+                .createdBy("test@fsm.com")
+                .createdAt(LocalDateTime.now())
+                .build();
     }
     
     // Helper method to create test tasks
