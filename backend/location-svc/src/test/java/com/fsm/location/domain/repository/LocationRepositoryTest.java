@@ -230,6 +230,23 @@ class LocationRepositoryTest {
         }
         
         @Override
+        public List<TechnicianLocation> findTechniciansWithinRadius(
+                org.locationtech.jts.geom.Point point, double radiusMeters) {
+            return List.of();
+        }
+        
+        @Override
+        public List<TechnicianLocation> findActiveTechniciansWithinRadius(
+                org.locationtech.jts.geom.Point point, double radiusMeters, LocalDateTime since) {
+            return List.of();
+        }
+        
+        @Override
+        public List<TechnicianLocation> findLastKnownPositionsForActiveTechnicians(LocalDateTime since) {
+            return List.of();
+        }
+        
+        @Override
         public List<TechnicianLocation> findAll() {
             return List.of();
         }

@@ -882,7 +882,7 @@ class TechnicianLocationTest {
     void testTechnicianLocationAllArgsConstructor() {
         LocalDateTime now = LocalDateTime.now();
         TechnicianLocation location = new TechnicianLocation(1L, 101L, 39.7817, -89.6501, 
-                5.0, now, 85, now);
+                5.0, now, 85, null, now);
         
         assertNotNull(location);
         assertEquals(1L, location.getId());
