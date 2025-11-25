@@ -3,6 +3,7 @@ import { isAuthenticated } from './services/authService';
 import LoginPage from './components/LoginPage';
 import NavigationTabs from './components/NavigationTabs';
 import TaskListView from './components/TaskListView';
+import TaskDetailView from './components/TaskDetailView';
 import MapView from './components/MapView';
 import ProfileView from './components/ProfileView';
 import './App.css';
@@ -11,6 +12,7 @@ function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(isAuthenticated());
   const [activeTab, setActiveTab] = useState('tasks');
   const [isOnline, setIsOnline] = useState(navigator.onLine);
+  const [selectedTaskId, setSelectedTaskId] = useState(null);
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true);
@@ -32,6 +34,20 @@ function App() {
   const handleLogout = () => {
     setIsLoggedIn(false);
     setActiveTab('tasks');
+    setSelectedTaskId(null);
+  };
+
+  const handleTaskSelect = (taskId) => {
+    setSelectedTaskId(taskId);
+  };
+
+  const handleBackToList = () => {
+    setSelectedTaskId(null);
+  };
+
+  const handleTabChange = (tab) => {
+    setActiveTab(tab);
+    setSelectedTaskId(null);
   };
 
   if (!isLoggedIn) {
@@ -39,15 +55,24 @@ function App() {
   }
 
   const renderActiveView = () => {
+    if (activeTab === 'tasks' && selectedTaskId) {
+      return (
+        <TaskDetailView
+          taskId={selectedTaskId}
+          onBack={handleBackToList}
+        />
+      );
+    }
+
     switch (activeTab) {
       case 'tasks':
-        return <TaskListView />;
+        return <TaskListView onTaskSelect={handleTaskSelect} />;
       case 'map':
         return <MapView />;
       case 'profile':
         return <ProfileView onLogout={handleLogout} />;
       default:
-        return <TaskListView />;
+        return <TaskListView onTaskSelect={handleTaskSelect} />;
     }
   };
 
@@ -67,7 +92,7 @@ function App() {
         {renderActiveView()}
       </main>
 
-      <NavigationTabs activeTab={activeTab} onTabChange={setActiveTab} />
+      <NavigationTabs activeTab={activeTab} onTabChange={handleTabChange} />
     </div>
   );
 }

@@ -646,4 +646,94 @@ describe('TaskListView', () => {
       expect(taskService.getAssignedTasks).toHaveBeenCalledTimes(initialCallCount);
     });
   });
+
+  // Tests for task selection/navigation
+  describe('Task Selection', () => {
+    const mockTasks = [
+      {
+        id: '1',
+        title: 'Fix HVAC System',
+        address: '123 Main St',
+        priority: 'HIGH',
+        status: 'ASSIGNED',
+      },
+    ];
+
+    it('should call onTaskSelect when task card is clicked', async () => {
+      const mockOnTaskSelect = vi.fn();
+      taskService.getAssignedTasks.mockResolvedValue(mockTasks);
+
+      render(<TaskListView onTaskSelect={mockOnTaskSelect} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Fix HVAC System')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByText('Fix HVAC System').closest('article'));
+
+      expect(mockOnTaskSelect).toHaveBeenCalledWith('1');
+    });
+
+    it('should call onTaskSelect when Enter key is pressed on task card', async () => {
+      const mockOnTaskSelect = vi.fn();
+      taskService.getAssignedTasks.mockResolvedValue(mockTasks);
+
+      render(<TaskListView onTaskSelect={mockOnTaskSelect} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Fix HVAC System')).toBeInTheDocument();
+      });
+
+      const taskCard = screen.getByText('Fix HVAC System').closest('article');
+      fireEvent.keyDown(taskCard, { key: 'Enter' });
+
+      expect(mockOnTaskSelect).toHaveBeenCalledWith('1');
+    });
+
+    it('should call onTaskSelect when Space key is pressed on task card', async () => {
+      const mockOnTaskSelect = vi.fn();
+      taskService.getAssignedTasks.mockResolvedValue(mockTasks);
+
+      render(<TaskListView onTaskSelect={mockOnTaskSelect} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Fix HVAC System')).toBeInTheDocument();
+      });
+
+      const taskCard = screen.getByText('Fix HVAC System').closest('article');
+      fireEvent.keyDown(taskCard, { key: ' ' });
+
+      expect(mockOnTaskSelect).toHaveBeenCalledWith('1');
+    });
+
+    it('should not call onTaskSelect when other key is pressed on task card', async () => {
+      const mockOnTaskSelect = vi.fn();
+      taskService.getAssignedTasks.mockResolvedValue(mockTasks);
+
+      render(<TaskListView onTaskSelect={mockOnTaskSelect} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Fix HVAC System')).toBeInTheDocument();
+      });
+
+      const taskCard = screen.getByText('Fix HVAC System').closest('article');
+      fireEvent.keyDown(taskCard, { key: 'Escape' });
+
+      expect(mockOnTaskSelect).not.toHaveBeenCalled();
+    });
+
+    it('should not throw error when onTaskSelect is not provided', async () => {
+      taskService.getAssignedTasks.mockResolvedValue(mockTasks);
+
+      render(<TaskListView />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Fix HVAC System')).toBeInTheDocument();
+      });
+
+      // Click should not throw error
+      const taskCard = screen.getByText('Fix HVAC System').closest('article');
+      expect(() => fireEvent.click(taskCard)).not.toThrow();
+    });
+  });
 });
