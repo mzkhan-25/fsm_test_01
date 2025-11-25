@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { createTask, getAddressSuggestions } from './taskApi';
+import { createTask, getAddressSuggestions, getTechnicians, assignTask } from './taskApi';
 
 // Mock fetch
 global.fetch = vi.fn();
@@ -220,6 +220,153 @@ describe('taskApi', () => {
         expect.stringContaining('123%20Main%20St%20%26%20Oak%20Ave'),
         expect.any(Object)
       );
+    });
+  });
+
+  describe('getTechnicians', () => {
+    const mockUsers = [
+      { id: 1, name: 'John Doe', email: 'john@example.com', role: 'TECHNICIAN', status: 'ACTIVE' },
+      { id: 2, name: 'Jane Smith', email: 'jane@example.com', role: 'TECHNICIAN', status: 'ACTIVE' },
+      { id: 3, name: 'Bob Admin', email: 'bob@example.com', role: 'ADMIN', status: 'ACTIVE' },
+      { id: 4, name: 'Inactive Tech', email: 'inactive@example.com', role: 'TECHNICIAN', status: 'INACTIVE' },
+    ];
+
+    it('fetches technicians successfully and filters by role and status', async () => {
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockUsers,
+      });
+
+      const result = await getTechnicians();
+
+      expect(result).toHaveLength(2);
+      expect(result[0].name).toBe('John Doe');
+      expect(result[1].name).toBe('Jane Smith');
+      expect(fetch).toHaveBeenCalledWith(
+        'http://localhost:8080/api/users',
+        expect.objectContaining({
+          method: 'GET',
+        })
+      );
+    });
+
+    it('includes auth token in headers when available', async () => {
+      localStorage.setItem('token', 'test-token-789');
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => [],
+      });
+
+      await getTechnicians();
+
+      expect(fetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer test-token-789',
+          },
+        })
+      );
+    });
+
+    it('throws error when API returns error response', async () => {
+      fetch.mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({ message: 'Unauthorized' }),
+      });
+
+      await expect(getTechnicians()).rejects.toThrow('Unauthorized');
+    });
+
+    it('throws default error message when API error has no message', async () => {
+      fetch.mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({}),
+      });
+
+      await expect(getTechnicians()).rejects.toThrow('Failed to fetch technicians');
+    });
+
+    it('handles network errors', async () => {
+      fetch.mockRejectedValueOnce(new Error('Network error'));
+
+      await expect(getTechnicians()).rejects.toThrow('Network error');
+    });
+  });
+
+  describe('assignTask', () => {
+    const mockAssignmentResponse = {
+      assignmentId: 1,
+      taskId: 100,
+      technicianId: 1,
+      taskStatus: 'ASSIGNED',
+      technicianWorkload: 5,
+    };
+
+    it('assigns task successfully', async () => {
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockAssignmentResponse,
+      });
+
+      const result = await assignTask(100, 1);
+
+      expect(result).toEqual(mockAssignmentResponse);
+      expect(fetch).toHaveBeenCalledWith(
+        'http://localhost:8081/api/tasks/100/assign',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ technicianId: 1 }),
+        }
+      );
+    });
+
+    it('includes auth token in headers when available', async () => {
+      localStorage.setItem('token', 'test-token-assign');
+      fetch.mockResolvedValueOnce({
+        ok: true,
+        json: async () => mockAssignmentResponse,
+      });
+
+      await assignTask(100, 1);
+
+      expect(fetch).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.objectContaining({
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer test-token-assign',
+          },
+        })
+      );
+    });
+
+    it('throws error when API returns error response', async () => {
+      fetch.mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({ message: 'Task already assigned' }),
+      });
+
+      await expect(assignTask(100, 1)).rejects.toThrow('Task already assigned');
+    });
+
+    it('throws default error message when API error has no message', async () => {
+      fetch.mockResolvedValueOnce({
+        ok: false,
+        json: async () => ({}),
+      });
+
+      await expect(assignTask(100, 1)).rejects.toThrow('Failed to assign task');
+    });
+
+    it('handles network errors', async () => {
+      fetch.mockRejectedValueOnce(new Error('Network error'));
+
+      await expect(assignTask(100, 1)).rejects.toThrow('Network error');
     });
   });
 });

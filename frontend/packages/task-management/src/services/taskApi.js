@@ -66,3 +66,46 @@ export const getAddressSuggestions = async (partialAddress) => {
 
   return response.json();
 };
+
+const IDENTITY_API_BASE_URL = import.meta.env.VITE_IDENTITY_API_BASE_URL || 'http://localhost:8080';
+
+/**
+ * Get list of technicians with their workload information
+ * @returns {Promise<Array>} List of technicians
+ */
+export const getTechnicians = async () => {
+  const response = await fetch(`${IDENTITY_API_BASE_URL}/api/users`, {
+    method: 'GET',
+    headers: getAuthHeaders(),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to fetch technicians');
+  }
+
+  const users = await response.json();
+  // Filter to only TECHNICIAN role and ACTIVE status
+  return users.filter(user => user.role === 'TECHNICIAN' && user.status === 'ACTIVE');
+};
+
+/**
+ * Assign a task to a technician
+ * @param {number} taskId - ID of the task to assign
+ * @param {number} technicianId - ID of the technician to assign to
+ * @returns {Promise<Object>} Assignment response
+ */
+export const assignTask = async (taskId, technicianId) => {
+  const response = await fetch(`${API_BASE_URL}/api/tasks/${taskId}/assign`, {
+    method: 'POST',
+    headers: getAuthHeaders(),
+    body: JSON.stringify({ technicianId }),
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.message || 'Failed to assign task');
+  }
+
+  return response.json();
+};
