@@ -3,6 +3,8 @@ package com.fsm.task.application.service;
 import com.fsm.task.application.dto.AssignTaskRequest;
 import com.fsm.task.application.dto.AssignTaskResponse;
 import com.fsm.task.application.dto.CreateTaskRequest;
+import com.fsm.task.application.dto.ReassignTaskRequest;
+import com.fsm.task.application.dto.ReassignTaskResponse;
 import com.fsm.task.application.dto.TaskListRequest;
 import com.fsm.task.application.dto.TaskListResponse;
 import com.fsm.task.application.dto.TaskResponse;
@@ -207,6 +209,104 @@ public class TaskService {
         log.info("Technician {} current workload: {} active assignments", technicianId, workload);
         
         return AssignTaskResponse.fromAssignment(savedAssignment, task, workload, assignedBy);
+    }
+    
+    /**
+     * Reassigns a task to a different technician.
+     * Handles reassignment with reason tracking and validates domain invariants.
+     * 
+     * Domain Invariants:
+     * - Cannot reassign COMPLETED tasks
+     * - IN_PROGRESS tasks require a reason for reassignment
+     * - Assignment history preserves audit trail
+     * - Both old and new technician must exist and be active
+     * 
+     * @param taskId the ID of the task to reassign
+     * @param request the reassignment request containing new technician ID and optional reason
+     * @param reassignedBy the username of the user making the reassignment
+     * @return ReassignTaskResponse with reassignment details and assignment history
+     */
+    @Transactional
+    public ReassignTaskResponse reassignTask(Long taskId, ReassignTaskRequest request, String reassignedBy) {
+        log.info("Reassigning task {} to technician {} by user: {}", taskId, request.getNewTechnicianId(), reassignedBy);
+        
+        // Find the task
+        ServiceTask task = taskRepository.findById(taskId)
+                .orElseThrow(() -> new TaskNotFoundException(taskId));
+        
+        // Validate task can be reassigned (must be ASSIGNED or IN_PROGRESS, not COMPLETED)
+        if (!task.canBeReassigned()) {
+            throw new InvalidAssignmentException(
+                    String.format("Task %d cannot be reassigned. Current status: %s. Only ASSIGNED or IN_PROGRESS tasks can be reassigned.", 
+                            taskId, task.getStatus()));
+        }
+        
+        // Require reason for IN_PROGRESS tasks
+        if (task.isInProgress() && (request.getReason() == null || request.getReason().trim().isEmpty())) {
+            throw new InvalidAssignmentException(
+                    String.format("Task %d is IN_PROGRESS. A reason is required for reassigning IN_PROGRESS tasks.", 
+                            taskId));
+        }
+        
+        Long newTechnicianId = request.getNewTechnicianId();
+        String reason = request.getReason();
+        
+        // Validate new technician exists and is active via identity-svc
+        technicianValidationService.validateTechnician(newTechnicianId);
+        
+        Long previousTechnicianId = task.getAssignedTechnicianId();
+        
+        // Ensure task has a previous technician (must be assigned to someone)
+        if (previousTechnicianId == null) {
+            throw new InvalidAssignmentException(
+                    String.format("Task %d has no assigned technician. Use assign endpoint instead.", taskId));
+        }
+        
+        // Mark previous assignment as REASSIGNED
+        Optional<Assignment> activeAssignment = assignmentRepository.findActiveAssignmentForTask(taskId);
+        if (activeAssignment.isPresent()) {
+            Assignment previousAssignment = activeAssignment.get();
+            String reassignmentReason = reason != null ? reason : "Reassigned to technician " + newTechnicianId;
+            previousAssignment.markAsReassigned(reassignmentReason);
+            assignmentRepository.save(previousAssignment);
+            log.info("Marked previous assignment {} as REASSIGNED", previousAssignment.getId());
+        }
+        
+        // Create new assignment
+        Assignment assignment = Assignment.builder()
+                .taskId(taskId)
+                .technicianId(newTechnicianId)
+                .assignedAt(LocalDateTime.now())
+                .assignedBy(reassignedBy)
+                .status(AssignmentStatus.ACTIVE)
+                .build();
+        
+        Assignment savedAssignment = assignmentRepository.save(assignment);
+        log.info("Created new assignment with ID: {}", savedAssignment.getId());
+        
+        // Create assignment history record for reassignment
+        String historyReason = reason != null 
+                ? reason 
+                : "Reassigned from technician " + previousTechnicianId + " to " + newTechnicianId;
+        AssignmentHistory history = AssignmentHistory.forReassignment(
+                savedAssignment, previousTechnicianId, reassignedBy, historyReason);
+        assignmentHistoryRepository.save(history);
+        log.info("Created assignment history record for reassignment");
+        
+        // Update task's assigned technician
+        task.reassignToTechnician(newTechnicianId);
+        taskRepository.save(task);
+        log.info("Updated task {} with new assigned technician {}", taskId, newTechnicianId);
+        
+        // Calculate new technician workload
+        int workload = assignmentRepository.getTechnicianWorkload(newTechnicianId);
+        log.info("New technician {} current workload: {} active assignments", newTechnicianId, workload);
+        
+        // Retrieve assignment history for this task
+        List<AssignmentHistory> taskHistory = assignmentHistoryRepository.findByTaskIdOrderByActionAtDesc(taskId);
+        
+        return ReassignTaskResponse.fromReassignment(
+                savedAssignment, task, previousTechnicianId, reason, workload, reassignedBy, taskHistory);
     }
     
     /**

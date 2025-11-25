@@ -3,6 +3,8 @@ package com.fsm.task.presentation.controller;
 import com.fsm.task.application.dto.AssignTaskRequest;
 import com.fsm.task.application.dto.AssignTaskResponse;
 import com.fsm.task.application.dto.CreateTaskRequest;
+import com.fsm.task.application.dto.ReassignTaskRequest;
+import com.fsm.task.application.dto.ReassignTaskResponse;
 import com.fsm.task.application.dto.TaskListRequest;
 import com.fsm.task.application.dto.TaskListResponse;
 import com.fsm.task.application.dto.TaskResponse;
@@ -229,6 +231,69 @@ public class TaskController {
                 taskId, request.getTechnicianId(), assignedBy);
         
         AssignTaskResponse response = taskService.assignTask(taskId, request, assignedBy);
+        return ResponseEntity.ok(response);
+    }
+    
+    /**
+     * Reassigns a task to a different technician.
+     * Only ADMIN and DISPATCHER roles are allowed to reassign tasks.
+     * Creates a new assignment record and updates assignment history.
+     * Returns a warning if new technician workload exceeds threshold (10 tasks).
+     * 
+     * Domain Invariants:
+     * - Cannot reassign COMPLETED tasks
+     * - IN_PROGRESS tasks require a reason for reassignment
+     * - Assignment history preserves audit trail
+     * 
+     * @param taskId the ID of the task to reassign
+     * @param request the reassignment request with new technician ID and optional reason
+     * @return ResponseEntity with reassignment details and assignment history
+     */
+    @PostMapping("/{taskId}/reassign")
+    @RequireRole({Role.ADMIN, Role.DISPATCHER})
+    @Operation(
+            summary = "Reassign a task to a different technician",
+            description = "Reassigns a task to a different technician with reason tracking. Only ADMIN and DISPATCHER roles can reassign tasks. " +
+                    "IN_PROGRESS tasks require a reason for reassignment. Cannot reassign COMPLETED tasks. " +
+                    "Returns assignment history and a warning if new technician workload exceeds 10 active tasks.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Task reassigned successfully",
+                    content = @Content(schema = @Schema(implementation = ReassignTaskResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid request - validation failed, task cannot be reassigned, or reason required for IN_PROGRESS tasks",
+                    content = @Content
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Unauthorized - authentication required",
+                    content = @Content
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Forbidden - insufficient permissions",
+                    content = @Content
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Task not found",
+                    content = @Content
+            )
+    })
+    public ResponseEntity<ReassignTaskResponse> reassignTask(
+            @Parameter(description = "ID of the task to reassign", required = true)
+            @PathVariable Long taskId,
+            @Valid @RequestBody ReassignTaskRequest request) {
+        String reassignedBy = getAuthenticatedUsername();
+        log.info("Received request to reassign task {} to technician {} from user: {}, reason: {}", 
+                taskId, request.getNewTechnicianId(), reassignedBy, request.getReason());
+        
+        ReassignTaskResponse response = taskService.reassignTask(taskId, request, reassignedBy);
         return ResponseEntity.ok(response);
     }
     
