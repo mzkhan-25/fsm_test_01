@@ -6,7 +6,6 @@ import {
   pauseLocationTracking,
   resumeLocationTracking,
   getTrackingStatus,
-  requestLocationPermission,
 } from '../services/locationService';
 import './ProfileView.css';
 

@@ -320,9 +320,8 @@ export const getTrackingStatus = () => {
 
 /**
  * Configure tracking interval (for testing purposes)
- * @param {number} intervalMs - Interval in milliseconds
  */
-export const setTrackingInterval = (intervalMs) => {
+export const setTrackingInterval = () => {
   if (isTracking) {
     throw new Error('Cannot change interval while tracking is active');
   }
