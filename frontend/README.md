@@ -8,6 +8,8 @@ The frontend is structured as a monorepo with multiple micro-frontends:
 
 - **Shell** (`packages/shell/`) - Main container application that hosts other micro-frontends in iframes
 - **Identity** (`packages/identity/`) - Authentication and user management micro-frontend
+- **Task Management** (`packages/task-management/`) - Task creation and management micro-frontend
+- **Technician Mobile** (`packages/technician-mobile/`) - Mobile-optimized interface for field technicians
 
 ### Technology Stack
 
@@ -44,6 +46,8 @@ npm run dev
 This will start:
 - Shell app at http://localhost:5173
 - Identity app at http://localhost:5174 (embedded in shell)
+- Task Management app at http://localhost:5175 (embedded in shell)
+- Technician Mobile app at http://localhost:5176 (embedded in shell)
 
 Access the application at http://localhost:5173
 
@@ -82,26 +86,48 @@ npm run lint
 ```
 frontend/
 ├── packages/
-│   ├── shell/              # Main container app
+│   ├── shell/                    # Main container app
 │   │   ├── src/
-│   │   │   ├── App.jsx     # Main app component with iframe container
+│   │   │   ├── App.jsx           # Main app component with iframe container
 │   │   │   └── ...
-│   │   ├── .env.example    # Environment variables template
+│   │   ├── .env.example          # Environment variables template
 │   │   └── package.json
 │   │
-│   └── identity/           # Login micro-frontend
+│   ├── identity/                 # Login micro-frontend
+│   │   ├── src/
+│   │   │   ├── components/
+│   │   │   │   ├── LoginPage.jsx      # Login form component
+│   │   │   │   ├── LoginPage.css      # Styles
+│   │   │   │   └── LoginPage.test.jsx # Unit tests
+│   │   │   └── test/
+│   │   │       └── setup.js           # Test configuration
+│   │   ├── .env.example               # Environment variables template
+│   │   └── package.json
+│   │
+│   ├── task-management/          # Task management micro-frontend
+│   │   ├── src/
+│   │   │   ├── components/       # Task-related components
+│   │   │   └── services/         # API services
+│   │   └── package.json
+│   │
+│   └── technician-mobile/        # Mobile technician micro-frontend
 │       ├── src/
 │       │   ├── components/
-│       │   │   ├── LoginPage.jsx      # Login form component
-│       │   │   ├── LoginPage.css      # Styles
-│       │   │   └── LoginPage.test.jsx # Unit tests
+│       │   │   ├── LoginPage.jsx      # Mobile login form
+│       │   │   ├── NavigationTabs.jsx # Bottom tab navigation
+│       │   │   ├── TaskListView.jsx   # Assigned tasks list
+│       │   │   ├── MapView.jsx        # Map view placeholder
+│       │   │   └── ProfileView.jsx    # User profile page
+│       │   ├── services/
+│       │   │   ├── authService.js     # Authentication API
+│       │   │   └── taskService.js     # Task management API
 │       │   └── test/
 │       │       └── setup.js           # Test configuration
 │       ├── .env.example               # Environment variables template
 │       └── package.json
 │
-├── lerna.json              # Lerna configuration
-└── package.json           # Root package with workspace config
+├── lerna.json                    # Lerna configuration
+└── package.json                  # Root package with workspace config
 ```
 
 ## Environment Configuration
@@ -114,11 +140,21 @@ Create `packages/shell/.env.development`:
 
 ```env
 VITE_IDENTITY_SERVICE_URL=http://localhost:5174
+VITE_TASK_MANAGEMENT_SERVICE_URL=http://localhost:5175
+VITE_TECHNICIAN_MOBILE_SERVICE_URL=http://localhost:5176
 ```
 
 ### Identity App
 
 Create `packages/identity/.env.development`:
+
+```env
+VITE_API_BASE_URL=http://localhost:8080
+```
+
+### Technician Mobile App
+
+Create `packages/technician-mobile/.env.development`:
 
 ```env
 VITE_API_BASE_URL=http://localhost:8080
@@ -221,13 +257,22 @@ All packages must maintain:
 - ✅ Error handling and display
 - ✅ 100% test coverage
 
+### Technician Mobile Micro-Frontend
+
+- ✅ Mobile-optimized login page
+- ✅ Task list view with priority and status indicators
+- ✅ Map view placeholder with location tracking
+- ✅ User profile and logout functionality
+- ✅ Bottom tab navigation (Tasks, Map, Profile)
+- ✅ Online/offline status detection
+- ✅ API service layer for backend communication
+- ✅ 99%+ test coverage
+
 ## Roadmap
 
 Future micro-frontends to be added:
-- Task management
 - Dispatcher dashboard
 - Supervisor dashboard
-- Technician mobile view
 - Real-time location tracking
 - Notifications
 
@@ -235,7 +280,7 @@ Future micro-frontends to be added:
 
 ### Port Already in Use
 
-If ports 5173 or 5174 are already in use:
+If ports 5173, 5174, 5175, or 5176 are already in use:
 
 1. Stop the processes using those ports
 2. Or, modify the port in `vite.config.js`:

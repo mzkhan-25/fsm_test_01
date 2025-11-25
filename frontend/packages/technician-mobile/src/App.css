@@ -1,0 +1,48 @@
+.app-container {
+  min-height: 100vh;
+  background-color: #f5f5f5;
+}
+
+.app-header {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 16px 20px;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.app-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.app-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.online-status {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #4caf50;
+}
+
+.status-dot.offline {
+  background-color: #f44336;
+}
+
+.main-content {
+  padding-bottom: 60px;
+}
