@@ -1,6 +1,8 @@
 package com.fsm.task.presentation.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fsm.task.application.dto.AssignTaskRequest;
+import com.fsm.task.application.dto.AssignTaskResponse;
 import com.fsm.task.application.dto.CreateTaskRequest;
 import com.fsm.task.application.dto.TaskListRequest;
 import com.fsm.task.application.dto.TaskListResponse;
@@ -8,11 +10,14 @@ import com.fsm.task.application.dto.TaskResponse;
 import com.fsm.task.application.service.TaskService;
 import com.fsm.task.domain.model.ServiceTask.Priority;
 import com.fsm.task.domain.model.ServiceTask.TaskStatus;
+import com.fsm.task.infrastructure.security.RoleAuthorizationAspect;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.context.annotation.EnableAspectJAutoProxy;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.test.context.support.WithMockUser;
 import org.springframework.test.web.servlet.MockMvc;
@@ -35,6 +40,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * Unit tests for TaskController
  */
 @WebMvcTest(TaskController.class)
+@Import(RoleAuthorizationAspect.class)
+@EnableAspectJAutoProxy
 class TaskControllerTest {
     
     @Autowired

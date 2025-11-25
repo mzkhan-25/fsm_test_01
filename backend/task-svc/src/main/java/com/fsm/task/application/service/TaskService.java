@@ -1,9 +1,13 @@
 package com.fsm.task.application.service;
 
+import com.fsm.task.application.dto.AssignTaskRequest;
+import com.fsm.task.application.dto.AssignTaskResponse;
 import com.fsm.task.application.dto.CreateTaskRequest;
 import com.fsm.task.application.dto.TaskListRequest;
 import com.fsm.task.application.dto.TaskListResponse;
 import com.fsm.task.application.dto.TaskResponse;
+import com.fsm.task.domain.model.Assignment;
+import com.fsm.task.domain.model.Assignment.AssignmentStatus;
 import com.fsm.task.domain.model.ServiceTask;
 import com.fsm.task.domain.model.ServiceTask.Priority;
 import com.fsm.task.domain.model.ServiceTask.TaskStatus;
@@ -34,6 +38,7 @@ import java.util.stream.Collectors;
 public class TaskService {
     
     private final TaskRepository taskRepository;
+    private final AssignmentRepository assignmentRepository;
     
     /**
      * Creates a new service task.
