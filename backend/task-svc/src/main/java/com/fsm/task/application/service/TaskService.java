@@ -8,6 +8,8 @@ import com.fsm.task.application.dto.ReassignTaskResponse;
 import com.fsm.task.application.dto.TaskListRequest;
 import com.fsm.task.application.dto.TaskListResponse;
 import com.fsm.task.application.dto.TaskResponse;
+import com.fsm.task.application.dto.TechnicianTaskListResponse;
+import com.fsm.task.application.dto.TechnicianTaskResponse;
 import com.fsm.task.application.exception.InvalidAssignmentException;
 import com.fsm.task.application.exception.TaskNotFoundException;
 import com.fsm.task.domain.model.Assignment;
@@ -29,6 +31,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -353,5 +356,97 @@ public class TaskService {
             counts.put(status.name(), taskRepository.countByStatus(status));
         }
         return counts;
+    }
+    
+    /**
+     * Retrieves tasks assigned to a specific technician.
+     * Filters by status if provided, and excludes completed tasks from previous days.
+     * Tasks are sorted by priority (HIGH first) and then by assigned time.
+     * 
+     * Domain Invariants:
+     * - Only return tasks assigned to the authenticated technician
+     * - Completed tasks from previous days are not shown
+     * - Tasks ordered by priority for easy identification
+     * 
+     * @param technicianId the ID of the authenticated technician
+     * @param status optional status filter (all, assigned, in_progress, completed)
+     * @return TechnicianTaskListResponse with the technician's tasks
+     */
+    @Transactional(readOnly = true)
+    public TechnicianTaskListResponse getTechnicianTasks(Long technicianId, String status) {
+        log.info("Fetching tasks for technician {} with status filter: {}", technicianId, status);
+        
+        List<ServiceTask> tasks;
+        TaskStatus statusFilter = parseStatusFilter(status);
+        
+        if (statusFilter != null) {
+            tasks = taskRepository.findByTechnicianIdAndStatusOrderedByPriority(technicianId, statusFilter);
+        } else {
+            tasks = taskRepository.findByTechnicianIdOrderedByPriority(technicianId);
+        }
+        
+        // Filter out completed tasks from previous days
+        // LIMITATION NOTE: Since the domain model doesn't have a 'completedAt' field,
+        // we use the task's createdAt as a heuristic. This means:
+        // - Completed tasks created today will be shown (assumes same-day completion)
+        // - Completed tasks created before today will be hidden
+        // TODO: Add 'completedAt' field to ServiceTask entity for accurate completion tracking
+        LocalDate today = LocalDate.now();
+        tasks = tasks.stream()
+                .filter(task -> {
+                    if (task.getStatus() == TaskStatus.COMPLETED) {
+                        // Show completed tasks only if they were created today
+                        // This is a heuristic since we don't have completedAt field
+                        LocalDate taskCreatedDate = task.getCreatedAt().toLocalDate();
+                        return !taskCreatedDate.isBefore(today);
+                    }
+                    return true;
+                })
+                .collect(Collectors.toList());
+        
+        // Convert to DTOs with assignment info
+        List<TechnicianTaskResponse> taskResponses = tasks.stream()
+                .map(task -> {
+                    // Get the assigned at timestamp from the assignment
+                    Optional<Assignment> activeAssignment = assignmentRepository.findActiveAssignmentForTask(task.getId());
+                    LocalDateTime assignedAt = activeAssignment
+                            .map(Assignment::getAssignedAt)
+                            .orElse(task.getCreatedAt());
+                    return TechnicianTaskResponse.fromEntity(task, assignedAt);
+                })
+                .collect(Collectors.toList());
+        
+        log.info("Found {} tasks for technician {}", taskResponses.size(), technicianId);
+        
+        return TechnicianTaskListResponse.builder()
+                .tasks(taskResponses)
+                .totalTasks(taskResponses.size())
+                .build();
+    }
+    
+    /**
+     * Parses the status filter string to a TaskStatus enum.
+     * Handles various input formats like "in_progress", "IN_PROGRESS", "inprogress", etc.
+     * 
+     * @param status the status filter string (all, assigned, in_progress, completed)
+     * @return TaskStatus enum or null if "all" or invalid
+     */
+    private TaskStatus parseStatusFilter(String status) {
+        if (status == null || status.isEmpty() || "all".equalsIgnoreCase(status)) {
+            return null;
+        }
+        
+        // Normalize the input: uppercase and remove underscores
+        String normalized = status.toUpperCase().replace("_", "");
+        
+        for (TaskStatus taskStatus : TaskStatus.values()) {
+            // Compare with enum name without underscores
+            if (taskStatus.name().replace("_", "").equals(normalized)) {
+                return taskStatus;
+            }
+        }
+        
+        log.warn("Invalid status filter: {}. Returning all tasks.", status);
+        return null;
     }
 }
