@@ -46,6 +46,9 @@ public class TechnicianTaskResponse {
     @Schema(description = "Timestamp when the task was assigned")
     private LocalDateTime assignedAt;
     
+    @Schema(description = "Timestamp when the task was started (IN_PROGRESS)")
+    private LocalDateTime startedAt;
+    
     /**
      * Converts a ServiceTask entity to TechnicianTaskResponse DTO
      * 
@@ -63,6 +66,7 @@ public class TechnicianTaskResponse {
                 .estimatedDuration(task.getEstimatedDuration())
                 .status(task.getStatus())
                 .assignedAt(assignedAt)
+                .startedAt(task.getStartedAt())
                 .build();
     }
     

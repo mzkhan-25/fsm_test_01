@@ -299,8 +299,11 @@ class ServiceTaskTest {
                 .status(ServiceTask.TaskStatus.ASSIGNED)
                 .build();
         
-        task.start();
+        assertNull(task.getStartedAt());
+        boolean result = task.start();
+        assertTrue(result);
         assertEquals(ServiceTask.TaskStatus.IN_PROGRESS, task.getStatus());
+        assertNotNull(task.getStartedAt());
     }
     
     @Test
@@ -312,9 +315,11 @@ class ServiceTaskTest {
                 .status(ServiceTask.TaskStatus.UNASSIGNED)
                 .build();
         
-        task.start();
+        boolean result = task.start();
+        assertFalse(result);
         // Should not change status if not assigned
         assertEquals(ServiceTask.TaskStatus.UNASSIGNED, task.getStatus());
+        assertNull(task.getStartedAt());
     }
     
     @Test
@@ -401,8 +406,11 @@ class ServiceTaskTest {
         assertEquals(ServiceTask.TaskStatus.ASSIGNED, task.getStatus());
         
         // Assigned -> In Progress
-        task.start();
+        assertNull(task.getStartedAt());
+        boolean started = task.start();
+        assertTrue(started);
         assertEquals(ServiceTask.TaskStatus.IN_PROGRESS, task.getStatus());
+        assertNotNull(task.getStartedAt());
         
         // In Progress -> Completed
         task.complete();
@@ -488,7 +496,7 @@ class ServiceTaskTest {
         ServiceTask task = new ServiceTask(1L, "Test", "Description", 
                 "123 Test St", ServiceTask.Priority.HIGH, 60, 
                 ServiceTask.TaskStatus.UNASSIGNED, "test@example.com", 
-                LocalDateTime.now(), null);
+                LocalDateTime.now(), null, null);
         
         assertNotNull(task);
         assertEquals(1L, task.getId());

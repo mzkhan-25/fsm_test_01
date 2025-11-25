@@ -67,6 +67,9 @@ public class ServiceTask {
     @Column(name = "assigned_technician_id")
     private Long assignedTechnicianId;
     
+    @Column(name = "started_at")
+    private LocalDateTime startedAt;
+    
     /**
      * Priority enum representing task priority levels
      */
@@ -160,12 +163,34 @@ public class ServiceTask {
     }
     
     /**
-     * Starts the task (moves to IN_PROGRESS)
+     * Starts the task (moves to IN_PROGRESS) and records the start timestamp.
+     * Domain invariant: Only ASSIGNED tasks can be started.
+     * @return true if the task was successfully started, false otherwise
      */
-    public void start() {
+    public boolean start() {
         if (this.status == TaskStatus.ASSIGNED) {
             this.status = TaskStatus.IN_PROGRESS;
+            this.startedAt = LocalDateTime.now();
+            return true;
         }
+        return false;
+    }
+    
+    /**
+     * Checks if the task can be started (moved to IN_PROGRESS).
+     * @return true if the task can be started
+     */
+    public boolean canBeStarted() {
+        return this.status == TaskStatus.ASSIGNED;
+    }
+    
+    /**
+     * Checks if the given technician is assigned to this task.
+     * @param technicianId The ID of the technician to check
+     * @return true if the technician is assigned to this task
+     */
+    public boolean isAssignedTo(Long technicianId) {
+        return this.assignedTechnicianId != null && this.assignedTechnicianId.equals(technicianId);
     }
     
     /**
