@@ -1,5 +1,5 @@
 -- V4__create_assignment_history_table.sql (H2 Compatible)
--- Creates the assignment_history table for tracking all assignment changes (audit trail).
+-- Creates the assignment_history table for tracking all assignment changes (audit trail)
 -- for the Assignment & Dispatch bounded context.
 
 CREATE TABLE IF NOT EXISTS assignment_history (
