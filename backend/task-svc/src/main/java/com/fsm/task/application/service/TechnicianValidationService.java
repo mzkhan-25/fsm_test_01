@@ -22,18 +22,37 @@ public class TechnicianValidationService {
     private final RestTemplate restTemplate;
     private final String identityServiceUrl;
     private final boolean validationEnabled;
+    private final boolean failOpenOnServiceUnavailable;
     
+    /**
+     * Creates a TechnicianValidationService with configurable behavior.
+     * 
+     * @param restTemplate the RestTemplate for HTTP calls
+     * @param identityServiceUrl the URL of the identity-svc
+     * @param validationEnabled whether to enable technician validation
+     * @param failOpenOnServiceUnavailable when true, allows assignment if identity-svc is unavailable;
+     *                                      when false, throws exception if service is unavailable
+     */
     public TechnicianValidationService(
             RestTemplate restTemplate,
             @Value("${identity.service.url:http://localhost:8080}") String identityServiceUrl,
-            @Value("${identity.service.validation.enabled:true}") boolean validationEnabled) {
+            @Value("${identity.service.validation.enabled:true}") boolean validationEnabled,
+            @Value("${identity.service.fail-open:true}") boolean failOpenOnServiceUnavailable) {
         this.restTemplate = restTemplate;
         this.identityServiceUrl = identityServiceUrl;
         this.validationEnabled = validationEnabled;
+        this.failOpenOnServiceUnavailable = failOpenOnServiceUnavailable;
     }
     
     /**
      * Validates that a technician exists and is active.
+     * 
+     * <p>Behavior when identity-svc is unavailable depends on the {@code identity.service.fail-open}
+     * configuration property:</p>
+     * <ul>
+     *   <li>When {@code fail-open=true} (default): Logs a warning and allows the operation to proceed</li>
+     *   <li>When {@code fail-open=false}: Throws a TechnicianNotFoundException</li>
+     * </ul>
      * 
      * @param technicianId the ID of the technician to validate
      * @throws TechnicianNotFoundException if technician not found or inactive
@@ -66,14 +85,23 @@ public class TechnicianValidationService {
                 throw new TechnicianNotFoundException(technicianId);
             }
             
-        } catch (HttpClientErrorException.NotFound e) {
-            log.warn("Technician not found in identity-svc: {}", technicianId);
-            throw new TechnicianNotFoundException(technicianId);
+        } catch (HttpClientErrorException e) {
+            if (e.getStatusCode() == HttpStatus.NOT_FOUND) {
+                log.warn("Technician not found in identity-svc: {}", technicianId);
+                throw new TechnicianNotFoundException(technicianId);
+            }
+            // Re-throw other HTTP client errors as RestClientException
+            throw e;
         } catch (RestClientException e) {
             log.error("Error calling identity-svc for technician {}: {}", technicianId, e.getMessage());
-            // If identity-svc is unavailable, we log the error but allow the operation
-            // This prevents task-svc from being blocked when identity-svc is down
-            log.warn("Identity-svc unavailable, proceeding without technician validation for ID: {}", technicianId);
+            if (failOpenOnServiceUnavailable) {
+                // If identity-svc is unavailable and fail-open is enabled, log warning and proceed
+                log.warn("Identity-svc unavailable (fail-open enabled), proceeding without technician validation for ID: {}", technicianId);
+            } else {
+                // If fail-open is disabled, throw exception to prevent assignment
+                log.warn("Identity-svc unavailable (fail-open disabled), blocking assignment for technician ID: {}", technicianId);
+                throw new TechnicianNotFoundException(technicianId, "could not be validated - identity service unavailable");
+            }
         }
     }
     

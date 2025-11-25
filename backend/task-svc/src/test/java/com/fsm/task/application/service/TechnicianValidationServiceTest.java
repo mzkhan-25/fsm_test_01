@@ -29,13 +29,18 @@ class TechnicianValidationServiceTest {
     
     private TechnicianValidationService validationService;
     private TechnicianValidationService disabledValidationService;
+    private TechnicianValidationService failClosedValidationService;
     
     private static final String IDENTITY_SERVICE_URL = "http://localhost:8080";
     
     @BeforeEach
     void setUp() {
-        validationService = new TechnicianValidationService(restTemplate, IDENTITY_SERVICE_URL, true);
-        disabledValidationService = new TechnicianValidationService(restTemplate, IDENTITY_SERVICE_URL, false);
+        // Default: validation enabled, fail-open enabled
+        validationService = new TechnicianValidationService(restTemplate, IDENTITY_SERVICE_URL, true, true);
+        // Validation disabled
+        disabledValidationService = new TechnicianValidationService(restTemplate, IDENTITY_SERVICE_URL, false, true);
+        // Fail-closed: throws exception when service unavailable
+        failClosedValidationService = new TechnicianValidationService(restTemplate, IDENTITY_SERVICE_URL, true, false);
     }
     
     @Test
@@ -66,7 +71,7 @@ class TechnicianValidationServiceTest {
         Long technicianId = 999L;
         
         when(restTemplate.getForEntity(anyString(), eq(TechnicianInfo.class)))
-                .thenThrow(HttpClientErrorException.create(HttpStatus.NOT_FOUND, "Not Found", null, null, null));
+                .thenThrow(new HttpClientErrorException(HttpStatus.NOT_FOUND));
         
         TechnicianNotFoundException exception = assertThrows(
                 TechnicianNotFoundException.class,
@@ -107,8 +112,25 @@ class TechnicianValidationServiceTest {
         when(restTemplate.getForEntity(anyString(), eq(TechnicianInfo.class)))
                 .thenThrow(new RestClientException("Connection refused"));
         
-        // Should not throw - service unavailable is handled gracefully
+        // Should not throw - service unavailable is handled gracefully (fail-open)
         assertDoesNotThrow(() -> validationService.validateTechnician(technicianId));
+    }
+    
+    @Test
+    void testValidateTechnicianServiceUnavailableFailClosed() {
+        Long technicianId = 103L;
+        
+        when(restTemplate.getForEntity(anyString(), eq(TechnicianInfo.class)))
+                .thenThrow(new RestClientException("Connection refused"));
+        
+        // Should throw when fail-closed is configured
+        TechnicianNotFoundException exception = assertThrows(
+                TechnicianNotFoundException.class,
+                () -> failClosedValidationService.validateTechnician(technicianId)
+        );
+        
+        assertEquals(technicianId, exception.getTechnicianId());
+        assertTrue(exception.getMessage().contains("could not be validated"));
     }
     
     @Test
