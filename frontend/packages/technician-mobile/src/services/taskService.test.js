@@ -32,18 +32,51 @@ describe('taskService', () => {
 
       global.fetch.mockResolvedValueOnce({
         ok: true,
-        json: () => Promise.resolve(mockTasks),
+        json: () => Promise.resolve({ tasks: mockTasks }),
       });
 
       const result = await getAssignedTasks();
 
       expect(result).toEqual(mockTasks);
       expect(global.fetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/tasks/assigned'),
+        expect.stringContaining('/api/technicians/me/tasks'),
         expect.objectContaining({
           method: 'GET',
         })
       );
+    });
+
+    it('should fetch assigned tasks with status filter', async () => {
+      const mockTasks = [
+        { id: '1', title: 'Task 1', status: 'IN_PROGRESS' },
+      ];
+
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ tasks: mockTasks }),
+      });
+
+      const result = await getAssignedTasks('in_progress');
+
+      expect(result).toEqual(mockTasks);
+      expect(global.fetch).toHaveBeenCalledWith(
+        expect.stringContaining('status=in_progress'),
+        expect.objectContaining({
+          method: 'GET',
+        })
+      );
+    });
+
+    it('should not append status param when filter is all', async () => {
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve({ tasks: [] }),
+      });
+
+      await getAssignedTasks('all');
+
+      const fetchCall = global.fetch.mock.calls[0][0];
+      expect(fetchCall).not.toContain('status=');
     });
 
     it('should throw error on failed fetch', async () => {
@@ -64,6 +97,21 @@ describe('taskService', () => {
       await expect(getAssignedTasks()).rejects.toThrow(
         'Failed to fetch assigned tasks'
       );
+    });
+
+    it('should handle response without tasks wrapper', async () => {
+      const mockTasks = [
+        { id: '1', title: 'Task 1', status: 'ASSIGNED' },
+      ];
+
+      global.fetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(mockTasks),
+      });
+
+      const result = await getAssignedTasks();
+
+      expect(result).toEqual(mockTasks);
     });
   });
 

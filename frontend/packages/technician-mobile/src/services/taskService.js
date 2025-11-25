@@ -3,9 +3,15 @@ import { getAuthHeaders } from './authService';
 
 /**
  * Get tasks assigned to the current technician
+ * @param {string} status - Filter by task status (all, assigned, in_progress, completed)
  */
-export const getAssignedTasks = async () => {
-  const response = await fetch(`${API_BASE_URL}/api/tasks/assigned`, {
+export const getAssignedTasks = async (status = 'all') => {
+  const url = new URL(`${API_BASE_URL}/api/technicians/me/tasks`);
+  if (status && status !== 'all') {
+    url.searchParams.append('status', status);
+  }
+
+  const response = await fetch(url.toString(), {
     method: 'GET',
     headers: getAuthHeaders(),
   });
@@ -15,7 +21,8 @@ export const getAssignedTasks = async () => {
     throw new Error(error.message || 'Failed to fetch assigned tasks');
   }
 
-  return response.json();
+  const data = await response.json();
+  return data.tasks || data;
 };
 
 /**
