@@ -23,6 +23,11 @@ const TechnicianAssignmentModal = ({ task, isOpen, onClose, onAssignmentComplete
   const [successMessage, setSuccessMessage] = useState('');
 
   // Load technicians when modal opens
+  /**
+   * Load technicians from the API when modal opens.
+   * Note: workload may be undefined in API response if the backend doesn't provide it,
+   * so we default to 0 for sorting and display purposes.
+   */
   const loadTechnicians = useCallback(async () => {
     if (!isOpen) return;
     
@@ -34,7 +39,7 @@ const TechnicianAssignmentModal = ({ task, isOpen, onClose, onAssignmentComplete
       // Sort by workload (least loaded first)
       const sortedTechnicians = technicianList.map(tech => ({
         ...tech,
-        workload: tech.workload || 0,  // Default to 0 if not provided
+        workload: tech.workload || 0,  // Default to 0 if not provided by API
       })).sort((a, b) => a.workload - b.workload);
       
       setTechnicians(sortedTechnicians);
