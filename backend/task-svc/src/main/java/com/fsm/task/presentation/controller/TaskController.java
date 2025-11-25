@@ -1,11 +1,14 @@
 package com.fsm.task.presentation.controller;
 
+import com.fsm.task.application.dto.AssignTaskRequest;
+import com.fsm.task.application.dto.AssignTaskResponse;
 import com.fsm.task.application.dto.CreateTaskRequest;
 import com.fsm.task.application.dto.TaskResponse;
 import com.fsm.task.application.service.TaskService;
 import com.fsm.task.infrastructure.security.RequireRole;
 import com.fsm.task.infrastructure.security.Role;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -77,6 +80,63 @@ public class TaskController {
         
         TaskResponse response = taskService.createTask(request, createdBy);
         return ResponseEntity.status(HttpStatus.CREATED).body(response);
+    }
+    
+    /**
+     * Assigns a task to a technician.
+     * Only ADMIN and DISPATCHER roles are allowed to assign tasks.
+     * Creates an assignment record and updates task status to ASSIGNED.
+     * Returns a warning if technician workload exceeds threshold (10 tasks).
+     * 
+     * @param taskId the ID of the task to assign
+     * @param request the assignment request with technician ID
+     * @return ResponseEntity with assignment details and 200 status
+     */
+    @PostMapping("/{taskId}/assign")
+    @RequireRole({Role.ADMIN, Role.DISPATCHER})
+    @Operation(
+            summary = "Assign a task to a technician",
+            description = "Assigns or reassigns a task to a technician. Only ADMIN and DISPATCHER roles can assign tasks. " +
+                    "Returns a warning if technician workload exceeds 10 active tasks.",
+            security = @SecurityRequirement(name = "bearerAuth")
+    )
+    @ApiResponses(value = {
+            @ApiResponse(
+                    responseCode = "200",
+                    description = "Task assigned successfully",
+                    content = @Content(schema = @Schema(implementation = AssignTaskResponse.class))
+            ),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Invalid request - validation failed or task cannot be assigned",
+                    content = @Content
+            ),
+            @ApiResponse(
+                    responseCode = "401",
+                    description = "Unauthorized - authentication required",
+                    content = @Content
+            ),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Forbidden - insufficient permissions",
+                    content = @Content
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Task not found",
+                    content = @Content
+            )
+    })
+    public ResponseEntity<AssignTaskResponse> assignTask(
+            @Parameter(description = "ID of the task to assign", required = true)
+            @PathVariable Long taskId,
+            @Valid @RequestBody AssignTaskRequest request) {
+        String assignedBy = getAuthenticatedUsername();
+        log.info("Received request to assign task {} to technician {} from user: {}", 
+                taskId, request.getTechnicianId(), assignedBy);
+        
+        AssignTaskResponse response = taskService.assignTask(taskId, request, assignedBy);
+        return ResponseEntity.ok(response);
     }
     
     /**
