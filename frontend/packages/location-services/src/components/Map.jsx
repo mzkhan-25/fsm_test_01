@@ -1,7 +1,7 @@
 import { MapContainer, TileLayer, ZoomControl, ScaleControl } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
 import './Map.css';
-import TaskMarkersLayer from './TaskMarkersLayer';
+import ClusteredTaskMarkersLayer from './ClusteredTaskMarkersLayer';
 import TechnicianMarkersLayer from './TechnicianMarkersLayer';
 
 // Static OpenStreetMap configuration
@@ -56,7 +56,7 @@ const Map = ({
         />
         {zoomControl && <ZoomControl position="topright" />}
         {scaleControl && <ScaleControl position="bottomleft" />}
-        <TaskMarkersLayer 
+        <ClusteredTaskMarkersLayer 
           tasks={tasks} 
           onTaskClick={onTaskClick}
           onAssignTask={onAssignTask}

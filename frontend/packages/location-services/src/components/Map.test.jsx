@@ -37,8 +37,8 @@ vi.mock('react-leaflet', () => ({
   ),
 }));
 
-// Mock TaskMarkersLayer component
-vi.mock('./TaskMarkersLayer', () => ({
+// Mock TaskMarkersLayer component - now replaced by ClusteredTaskMarkersLayer
+vi.mock('./ClusteredTaskMarkersLayer', () => ({
   default: ({ tasks, onTaskClick, onAssignTask, onViewDetails }) => (
     <div 
       data-testid="task-markers-layer"
