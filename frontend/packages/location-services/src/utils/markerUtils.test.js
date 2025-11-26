@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import L from 'leaflet';
-import { createTaskMarkerIcon, createTechnicianMarkerIcon } from './markerUtils';
+import { createTaskMarkerIcon, createTechnicianMarkerIcon, createHighlightedTechnicianMarkerIcon } from './markerUtils';
 
 // Mock Leaflet divIcon
 vi.mock('leaflet', () => ({
@@ -188,6 +188,88 @@ describe('markerUtils', () => {
       const techIcon = createTechnicianMarkerIcon('available');
       
       expect(taskIcon.html).not.toBe(techIcon.html);
+    });
+  });
+
+  describe('createHighlightedTechnicianMarkerIcon', () => {
+    it('creates divIcon with highlighted className', () => {
+      createHighlightedTechnicianMarkerIcon('available');
+      
+      expect(L.divIcon).toHaveBeenCalledWith(
+        expect.objectContaining({
+          className: 'technician-marker-icon highlighted',
+        })
+      );
+    });
+
+    it('creates icon with larger size than regular technician icon', () => {
+      createHighlightedTechnicianMarkerIcon('available');
+      
+      expect(L.divIcon).toHaveBeenCalledWith(
+        expect.objectContaining({
+          iconSize: [36, 44],
+        })
+      );
+    });
+
+    it('creates icon with adjusted anchor for larger size', () => {
+      createHighlightedTechnicianMarkerIcon('available');
+      
+      expect(L.divIcon).toHaveBeenCalledWith(
+        expect.objectContaining({
+          iconAnchor: [18, 44],
+        })
+      );
+    });
+
+    it('creates icon with adjusted popup anchor for larger size', () => {
+      createHighlightedTechnicianMarkerIcon('available');
+      
+      expect(L.divIcon).toHaveBeenCalledWith(
+        expect.objectContaining({
+          popupAnchor: [0, -44],
+        })
+      );
+    });
+
+    it('creates icon with box-shadow for highlight effect', () => {
+      createHighlightedTechnicianMarkerIcon('available');
+      
+      expect(L.divIcon).toHaveBeenCalledWith(
+        expect.objectContaining({
+          html: expect.stringContaining('box-shadow'),
+        })
+      );
+    });
+
+    it('creates icon with green color for available status', () => {
+      createHighlightedTechnicianMarkerIcon('available');
+      
+      expect(L.divIcon).toHaveBeenCalledWith(
+        expect.objectContaining({
+          html: expect.stringContaining('background-color: #28a745'),
+        })
+      );
+    });
+
+    it('creates icon with yellow color for busy status', () => {
+      createHighlightedTechnicianMarkerIcon('busy');
+      
+      expect(L.divIcon).toHaveBeenCalledWith(
+        expect.objectContaining({
+          html: expect.stringContaining('background-color: #ffc107'),
+        })
+      );
+    });
+
+    it('creates highlighted class on inner element', () => {
+      createHighlightedTechnicianMarkerIcon('available');
+      
+      expect(L.divIcon).toHaveBeenCalledWith(
+        expect.objectContaining({
+          html: expect.stringContaining('class="technician-marker highlighted"'),
+        })
+      );
     });
   });
 });
