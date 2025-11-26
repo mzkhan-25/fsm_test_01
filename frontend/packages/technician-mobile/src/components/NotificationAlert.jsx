@@ -19,9 +19,15 @@ function NotificationAlert({ onNotificationTap }) {
   const handleTap = useCallback(() => {
     if (notification && onNotificationTap) {
       // Parse data if it's a string
-      const data = typeof notification.data === 'string'
-        ? JSON.parse(notification.data)
-        : notification.data;
+      let data = notification.data;
+      if (typeof data === 'string') {
+        try {
+          data = JSON.parse(data);
+        } catch {
+          console.warn('Failed to parse notification data');
+          data = {};
+        }
+      }
 
       if (data?.taskId) {
         onNotificationTap(data.taskId);

@@ -176,9 +176,15 @@ export const showSystemNotification = (notification) => {
     systemNotification.onclick = () => {
       window.focus();
       // Parse data if it's a string
-      const data = typeof notification.data === 'string'
-        ? JSON.parse(notification.data)
-        : notification.data;
+      let data = notification.data;
+      if (typeof data === 'string') {
+        try {
+          data = JSON.parse(data);
+        } catch {
+          console.warn('Failed to parse notification data:', data);
+          data = {};
+        }
+      }
 
       if (data?.taskId) {
         // Notify listeners about notification tap with task ID
@@ -228,9 +234,15 @@ export const notifyListeners = (event) => {
  */
 export const handlePushNotification = (notification, isBackground = false) => {
   // Parse data if it's a string
-  const data = typeof notification.data === 'string'
-    ? JSON.parse(notification.data)
-    : notification.data;
+  let data = notification.data;
+  if (typeof data === 'string') {
+    try {
+      data = JSON.parse(data);
+    } catch {
+      console.warn('Failed to parse notification data:', data);
+      data = {};
+    }
+  }
 
   if (isBackground) {
     // Show system notification for background
