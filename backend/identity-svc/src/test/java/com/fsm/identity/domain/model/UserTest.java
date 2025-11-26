@@ -414,7 +414,7 @@ class UserTest {
     @Test
     void testUserAllArgsConstructor() {
         User user = new User(1L, "John", "john@example.com", "+12025551000",
-                "hashedPassword123", technicianRole, User.UserStatus.ACTIVE, 
+                "hashedPassword123", technicianRole, User.UserStatus.ACTIVE, null,
                 LocalDateTime.now(), LocalDateTime.now());
         
         assertNotNull(user);
@@ -621,5 +621,55 @@ class UserTest {
                 .build();
         
         assertNotEquals(user1, user2);
+    }
+    
+    @Test
+    void testRegisterDeviceToken() {
+        User user = User.builder()
+                .name("John Doe")
+                .email("john@example.com")
+                .password("password123")
+                .role(technicianRole)
+                .build();
+        
+        assertNull(user.getDeviceToken());
+        
+        String token = "fcm_test_token_123456";
+        user.registerDeviceToken(token);
+        
+        assertEquals(token, user.getDeviceToken());
+    }
+    
+    @Test
+    void testRegisterDeviceTokenOverridesPrevious() {
+        User user = User.builder()
+                .name("John Doe")
+                .email("john@example.com")
+                .password("password123")
+                .role(technicianRole)
+                .deviceToken("old_token")
+                .build();
+        
+        assertEquals("old_token", user.getDeviceToken());
+        
+        String newToken = "new_fcm_token_789";
+        user.registerDeviceToken(newToken);
+        
+        assertEquals(newToken, user.getDeviceToken());
+    }
+    
+    @Test
+    void testDeviceTokenInBuilder() {
+        String token = "fcm_token_from_builder";
+        
+        User user = User.builder()
+                .name("John Doe")
+                .email("john@example.com")
+                .password("password123")
+                .role(technicianRole)
+                .deviceToken(token)
+                .build();
+        
+        assertEquals(token, user.getDeviceToken());
     }
 }

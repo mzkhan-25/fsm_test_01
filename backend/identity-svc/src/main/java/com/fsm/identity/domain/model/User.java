@@ -59,6 +59,9 @@ public class User {
     @Builder.Default
     private UserStatus status = UserStatus.ACTIVE;
     
+    @Column(name = "device_token")
+    private String deviceToken;
+    
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
     
@@ -103,5 +106,13 @@ public class User {
      */
     public boolean isActive() {
         return this.status == UserStatus.ACTIVE;
+    }
+    
+    /**
+     * Registers a device token for push notifications
+     * @param token the device token
+     */
+    public void registerDeviceToken(String token) {
+        this.deviceToken = token;
     }
 }

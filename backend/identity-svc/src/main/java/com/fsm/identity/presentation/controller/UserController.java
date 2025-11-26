@@ -173,6 +173,40 @@ public class UserController {
     }
     
     /**
+     * Register device token for push notifications
+     * 
+     * @param id User ID
+     * @param request Device token request
+     * @return No content
+     */
+    @PostMapping("/{id}/device-token")
+    @Operation(summary = "Register device token", description = "Register a device token for push notifications")
+    @SecurityRequirement(name = "Bearer Authentication")
+    @ApiResponses(value = {
+            @ApiResponse(responseCode = "204", description = "Device token registered successfully",
+                    content = @Content),
+            @ApiResponse(responseCode = "404", description = "User not found",
+                    content = @Content)
+    })
+    public ResponseEntity<?> registerDeviceToken(@PathVariable Long id, 
+                                                  @RequestBody DeviceTokenRequest request) {
+        try {
+            userService.registerDeviceToken(id, request.deviceToken());
+            return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException e) {
+            log.warn("Failed to register device token: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(new ErrorResponse(e.getMessage()));
+        }
+    }
+    
+    /**
+     * Device token request DTO
+     */
+    private record DeviceTokenRequest(String deviceToken) {
+    }
+    
+    /**
      * Error response DTO for consistent error handling
      */
     private record ErrorResponse(String message) {

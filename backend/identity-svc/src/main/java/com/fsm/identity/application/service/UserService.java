@@ -202,6 +202,30 @@ public class UserService {
     }
     
     /**
+     * Register device token for push notifications
+     * 
+     * @param userId User ID
+     * @param deviceToken Device token from FCM
+     * @throws IllegalArgumentException if user not found
+     */
+    @Transactional
+    public void registerDeviceToken(Long userId, String deviceToken) {
+        log.info("Registering device token for user id: {}", userId);
+        
+        // Find existing user
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> {
+                    log.warn("User not found with id: {}", userId);
+                    return new IllegalArgumentException("User not found with id: " + userId);
+                });
+        
+        // Register device token
+        user.registerDeviceToken(deviceToken);
+        userRepository.save(user);
+        log.info("Device token registered successfully for user id: {}", userId);
+    }
+    
+    /**
      * Map User entity to UserResponse DTO
      */
     private UserResponse mapToResponse(User user) {
