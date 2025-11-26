@@ -6,6 +6,9 @@ describe('TaskCompletionModal', () => {
   const mockOnClose = vi.fn();
   const mockOnSubmit = vi.fn();
 
+  // Helper function to get the form element
+  const getForm = () => screen.getByRole('button', { name: 'Complete Task' }).closest('form');
+
   beforeEach(() => {
     vi.clearAllMocks();
   });
@@ -173,7 +176,7 @@ describe('TaskCompletionModal', () => {
         />
       );
 
-      const form = screen.getByRole('button', { name: 'Complete Task' }).closest('form');
+      const form = getForm();
       fireEvent.submit(form);
 
       expect(screen.getByText('Work summary must be at least 10 characters long')).toBeInTheDocument();
@@ -538,7 +541,7 @@ describe('TaskCompletionModal', () => {
         />
       );
 
-      const form = screen.getByRole('button', { name: 'Complete Task' }).closest('form');
+      const form = getForm();
       fireEvent.submit(form);
 
       const errorMessage = screen.getByText('Work summary must be at least 10 characters long');
@@ -555,7 +558,7 @@ describe('TaskCompletionModal', () => {
       );
 
       const textarea = screen.getByLabelText('Work Summary *');
-      const form = screen.getByRole('button', { name: 'Complete Task' }).closest('form');
+      const form = getForm();
       fireEvent.submit(form);
 
       expect(textarea).toHaveAttribute('aria-describedby', 'summary-error');
