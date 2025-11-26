@@ -1,67 +1,62 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import Map from './Map';
 
-// Mock the @vis.gl/react-google-maps module
-vi.mock('@vis.gl/react-google-maps', () => ({
-  APIProvider: ({ children, apiKey }) => (
-    <div data-testid="api-provider" data-api-key={apiKey}>
+// Mock react-leaflet components
+vi.mock('react-leaflet', () => ({
+  MapContainer: ({ children, center, zoom, scrollWheelZoom, zoomControl, className }) => (
+    <div 
+      data-testid="map-container"
+      data-center={JSON.stringify(center)}
+      data-zoom={zoom}
+      data-scroll-wheel-zoom={scrollWheelZoom}
+      data-zoom-control={zoomControl}
+      className={className}
+    >
       {children}
     </div>
   ),
-  Map: ({ defaultCenter, defaultZoom, mapId, gestureHandling, disableDefaultUI, zoomControl, mapTypeControl, scaleControl, streetViewControl, rotateControl, fullscreenControl }) => (
+  TileLayer: ({ url, attribution }) => (
     <div 
-      data-testid="google-map"
-      data-center={JSON.stringify(defaultCenter)}
-      data-zoom={defaultZoom}
-      data-map-id={mapId}
-      data-gesture-handling={gestureHandling}
-      data-disable-default-ui={disableDefaultUI}
-      data-zoom-control={zoomControl}
-      data-map-type-control={mapTypeControl}
-      data-scale-control={scaleControl}
-      data-street-view-control={streetViewControl}
-      data-rotate-control={rotateControl}
-      data-fullscreen-control={fullscreenControl}
+      data-testid="tile-layer"
+      data-url={url}
+      data-attribution={attribution}
     >
-      Mock Google Map
+      Mock TileLayer
+    </div>
+  ),
+  ZoomControl: ({ position }) => (
+    <div data-testid="zoom-control" data-position={position}>
+      Mock ZoomControl
+    </div>
+  ),
+  ScaleControl: ({ position }) => (
+    <div data-testid="scale-control" data-position={position}>
+      Mock ScaleControl
     </div>
   ),
 }));
 
 describe('Map', () => {
-  const originalEnv = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-
-  beforeEach(() => {
-    // Reset environment variable before each test
-    import.meta.env.VITE_GOOGLE_MAPS_API_KEY = 'test-api-key';
-  });
-
-  afterEach(() => {
-    import.meta.env.VITE_GOOGLE_MAPS_API_KEY = originalEnv;
-  });
-
   describe('Rendering', () => {
     it('renders the map with default props', () => {
       render(<Map />);
       
-      const map = screen.getByTestId('google-map');
+      const map = screen.getByTestId('map-container');
       expect(map).toBeInTheDocument();
-      expect(map).toHaveTextContent('Mock Google Map');
     });
 
-    it('renders with APIProvider wrapper', () => {
+    it('renders with a wrapper div', () => {
       render(<Map />);
       
-      const apiProvider = screen.getByTestId('api-provider');
-      expect(apiProvider).toBeInTheDocument();
+      const wrapper = document.querySelector('.map-wrapper');
+      expect(wrapper).toBeInTheDocument();
     });
 
     it('applies custom className', () => {
       render(<Map className="custom-map-class" />);
       
-      const apiProvider = screen.getByTestId('api-provider');
-      const wrapper = apiProvider.querySelector('.map-wrapper');
+      const wrapper = document.querySelector('.map-wrapper');
       expect(wrapper).toHaveClass('map-wrapper');
       expect(wrapper).toHaveClass('custom-map-class');
     });
@@ -70,9 +65,23 @@ describe('Map', () => {
       const customStyle = { width: '500px', height: '300px' };
       render(<Map style={customStyle} />);
       
-      const apiProvider = screen.getByTestId('api-provider');
-      const wrapper = apiProvider.querySelector('.map-wrapper');
+      const wrapper = document.querySelector('.map-wrapper');
       expect(wrapper).toHaveStyle(customStyle);
+    });
+
+    it('renders the TileLayer with OpenStreetMap URL', () => {
+      render(<Map />);
+      
+      const tileLayer = screen.getByTestId('tile-layer');
+      expect(tileLayer).toBeInTheDocument();
+      expect(tileLayer.getAttribute('data-url')).toBe('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png');
+    });
+
+    it('renders TileLayer with OpenStreetMap attribution', () => {
+      render(<Map />);
+      
+      const tileLayer = screen.getByTestId('tile-layer');
+      expect(tileLayer.getAttribute('data-attribution')).toContain('OpenStreetMap');
     });
   });
 
@@ -80,155 +89,104 @@ describe('Map', () => {
     it('uses default center when not provided', () => {
       render(<Map />);
       
-      const map = screen.getByTestId('google-map');
+      const map = screen.getByTestId('map-container');
       const center = JSON.parse(map.getAttribute('data-center'));
-      expect(center).toEqual({ lat: 37.7749, lng: -122.4194 }); // San Francisco
+      expect(center).toEqual([37.7749, -122.4194]); // San Francisco as [lat, lng] array
     });
 
     it('uses custom center when provided', () => {
       const customCenter = { lat: 40.7128, lng: -74.0060 }; // New York
       render(<Map center={customCenter} />);
       
-      const map = screen.getByTestId('google-map');
+      const map = screen.getByTestId('map-container');
       const center = JSON.parse(map.getAttribute('data-center'));
-      expect(center).toEqual(customCenter);
+      expect(center).toEqual([customCenter.lat, customCenter.lng]);
     });
 
     it('uses default zoom level when not provided', () => {
       render(<Map />);
       
-      const map = screen.getByTestId('google-map');
+      const map = screen.getByTestId('map-container');
       expect(map.getAttribute('data-zoom')).toBe('12');
     });
 
     it('uses custom zoom level when provided', () => {
       render(<Map zoom={15} />);
       
-      const map = screen.getByTestId('google-map');
+      const map = screen.getByTestId('map-container');
       expect(map.getAttribute('data-zoom')).toBe('15');
     });
 
-    it('uses default mapId when not provided', () => {
+    it('enables scroll wheel zoom by default', () => {
       render(<Map />);
       
-      const map = screen.getByTestId('google-map');
-      expect(map.getAttribute('data-map-id')).toBe('location-services-map');
+      const map = screen.getByTestId('map-container');
+      expect(map.getAttribute('data-scroll-wheel-zoom')).toBe('true');
     });
 
-    it('uses custom mapId when provided', () => {
-      render(<Map mapId="custom-map-id" />);
+    it('can disable scroll wheel zoom', () => {
+      render(<Map scrollWheelZoom={false} />);
       
-      const map = screen.getByTestId('google-map');
-      expect(map.getAttribute('data-map-id')).toBe('custom-map-id');
+      const map = screen.getByTestId('map-container');
+      expect(map.getAttribute('data-scroll-wheel-zoom')).toBe('false');
+    });
+
+    it('applies leaflet-map-container class to MapContainer', () => {
+      render(<Map />);
+      
+      const map = screen.getByTestId('map-container');
+      expect(map).toHaveClass('leaflet-map-container');
     });
   });
 
   describe('Map Controls', () => {
-    it('enables zoom control', () => {
+    it('renders zoom control by default', () => {
       render(<Map />);
       
-      const map = screen.getByTestId('google-map');
-      expect(map.getAttribute('data-zoom-control')).toBe('true');
+      const zoomControl = screen.getByTestId('zoom-control');
+      expect(zoomControl).toBeInTheDocument();
     });
 
-    it('disables map type control', () => {
+    it('positions zoom control on top right', () => {
       render(<Map />);
       
-      const map = screen.getByTestId('google-map');
-      expect(map.getAttribute('data-map-type-control')).toBe('false');
+      const zoomControl = screen.getByTestId('zoom-control');
+      expect(zoomControl.getAttribute('data-position')).toBe('topright');
     });
 
-    it('enables scale control', () => {
+    it('can hide zoom control', () => {
+      render(<Map zoomControl={false} />);
+      
+      const zoomControl = screen.queryByTestId('zoom-control');
+      expect(zoomControl).not.toBeInTheDocument();
+    });
+
+    it('renders scale control by default', () => {
       render(<Map />);
       
-      const map = screen.getByTestId('google-map');
-      expect(map.getAttribute('data-scale-control')).toBe('true');
+      const scaleControl = screen.getByTestId('scale-control');
+      expect(scaleControl).toBeInTheDocument();
     });
 
-    it('disables street view control', () => {
+    it('positions scale control on bottom left', () => {
       render(<Map />);
       
-      const map = screen.getByTestId('google-map');
-      expect(map.getAttribute('data-street-view-control')).toBe('false');
+      const scaleControl = screen.getByTestId('scale-control');
+      expect(scaleControl.getAttribute('data-position')).toBe('bottomleft');
     });
 
-    it('disables rotate control', () => {
+    it('can hide scale control', () => {
+      render(<Map scaleControl={false} />);
+      
+      const scaleControl = screen.queryByTestId('scale-control');
+      expect(scaleControl).not.toBeInTheDocument();
+    });
+
+    it('disables MapContainer built-in zoom control', () => {
       render(<Map />);
       
-      const map = screen.getByTestId('google-map');
-      expect(map.getAttribute('data-rotate-control')).toBe('false');
-    });
-
-    it('enables fullscreen control', () => {
-      render(<Map />);
-      
-      const map = screen.getByTestId('google-map');
-      expect(map.getAttribute('data-fullscreen-control')).toBe('true');
-    });
-
-    it('does not disable default UI', () => {
-      render(<Map />);
-      
-      const map = screen.getByTestId('google-map');
-      expect(map.getAttribute('data-disable-default-ui')).toBe('false');
-    });
-
-    it('sets gesture handling to greedy', () => {
-      render(<Map />);
-      
-      const map = screen.getByTestId('google-map');
-      expect(map.getAttribute('data-gesture-handling')).toBe('greedy');
-    });
-  });
-
-  describe('API Key Handling', () => {
-    it('uses API key from environment variable', () => {
-      render(<Map />);
-      
-      const apiProvider = screen.getByTestId('api-provider');
-      expect(apiProvider.getAttribute('data-api-key')).toBe('test-api-key');
-    });
-
-    it('displays error message when API key is not configured', () => {
-      import.meta.env.VITE_GOOGLE_MAPS_API_KEY = '';
-      
-      render(<Map />);
-      
-      expect(screen.getByText('Map Configuration Error')).toBeInTheDocument();
-      expect(screen.getByText('Google Maps API key is not configured.')).toBeInTheDocument();
-      expect(screen.getByText(/Please set VITE_GOOGLE_MAPS_API_KEY/)).toBeInTheDocument();
-    });
-
-    it('does not render map when API key is undefined', () => {
-      import.meta.env.VITE_GOOGLE_MAPS_API_KEY = undefined;
-      
-      render(<Map />);
-      
-      // When undefined is converted to string "undefined", it's treated as a valid key
-      // This is actually a limitation of import.meta.env behavior in tests
-      // In real scenarios, undefined would show error, but in tests it becomes "undefined" string
-      const apiProvider = screen.queryByTestId('api-provider');
-      expect(apiProvider).toBeInTheDocument();
-    });
-
-    it('applies error styling when API key is missing', () => {
-      import.meta.env.VITE_GOOGLE_MAPS_API_KEY = '';
-      
-      render(<Map className="custom-class" />);
-      
-      const errorDiv = screen.getByText('Map Configuration Error').closest('.map-error');
-      expect(errorDiv).toHaveClass('map-error');
-      expect(errorDiv).toHaveClass('custom-class');
-    });
-
-    it('applies custom style to error message container', () => {
-      import.meta.env.VITE_GOOGLE_MAPS_API_KEY = '';
-      const customStyle = { width: '400px' };
-      
-      render(<Map style={customStyle} />);
-      
-      const errorDiv = screen.getByText('Map Configuration Error').closest('.map-error');
-      expect(errorDiv).toHaveStyle(customStyle);
+      const map = screen.getByTestId('map-container');
+      expect(map.getAttribute('data-zoom-control')).toBe('false');
     });
   });
 
@@ -236,8 +194,7 @@ describe('Map', () => {
     it('renders map wrapper with full dimensions', () => {
       render(<Map />);
       
-      const apiProvider = screen.getByTestId('api-provider');
-      const wrapper = apiProvider.querySelector('.map-wrapper');
+      const wrapper = document.querySelector('.map-wrapper');
       expect(wrapper).toHaveClass('map-wrapper');
     });
 
@@ -245,8 +202,7 @@ describe('Map', () => {
       const style = { width: '100%', height: '600px' };
       render(<Map style={style} />);
       
-      const apiProvider = screen.getByTestId('api-provider');
-      const wrapper = apiProvider.querySelector('.map-wrapper');
+      const wrapper = document.querySelector('.map-wrapper');
       expect(wrapper).toHaveStyle(style);
     });
   });
@@ -255,14 +211,14 @@ describe('Map', () => {
     it('handles zero zoom level', () => {
       render(<Map zoom={0} />);
       
-      const map = screen.getByTestId('google-map');
+      const map = screen.getByTestId('map-container');
       expect(map.getAttribute('data-zoom')).toBe('0');
     });
 
     it('handles maximum zoom level', () => {
       render(<Map zoom={20} />);
       
-      const map = screen.getByTestId('google-map');
+      const map = screen.getByTestId('map-container');
       expect(map.getAttribute('data-zoom')).toBe('20');
     });
 
@@ -270,27 +226,45 @@ describe('Map', () => {
       const center = { lat: 0, lng: 0 };
       render(<Map center={center} />);
       
-      const map = screen.getByTestId('google-map');
+      const map = screen.getByTestId('map-container');
       const mapCenter = JSON.parse(map.getAttribute('data-center'));
-      expect(mapCenter).toEqual(center);
+      expect(mapCenter).toEqual([0, 0]);
     });
 
     it('handles negative coordinates', () => {
       const center = { lat: -33.8688, lng: 151.2093 }; // Sydney
       render(<Map center={center} />);
       
-      const map = screen.getByTestId('google-map');
+      const map = screen.getByTestId('map-container');
       const mapCenter = JSON.parse(map.getAttribute('data-center'));
-      expect(mapCenter).toEqual(center);
+      expect(mapCenter).toEqual([center.lat, center.lng]);
     });
 
-    it('handles empty string API key same as missing API key', () => {
-      import.meta.env.VITE_GOOGLE_MAPS_API_KEY = '';
+    it('renders with all props combined', () => {
+      const props = {
+        center: { lat: 51.5074, lng: -0.1278 },
+        zoom: 10,
+        style: { height: '500px' },
+        className: 'my-custom-map',
+        zoomControl: false,
+        scaleControl: false,
+        scrollWheelZoom: false
+      };
       
-      render(<Map />);
+      render(<Map {...props} />);
       
-      expect(screen.getByText('Map Configuration Error')).toBeInTheDocument();
-      expect(screen.queryByTestId('google-map')).not.toBeInTheDocument();
+      const wrapper = document.querySelector('.map-wrapper');
+      expect(wrapper).toHaveClass('my-custom-map');
+      expect(wrapper).toHaveStyle({ height: '500px' });
+      
+      const map = screen.getByTestId('map-container');
+      const center = JSON.parse(map.getAttribute('data-center'));
+      expect(center).toEqual([51.5074, -0.1278]);
+      expect(map.getAttribute('data-zoom')).toBe('10');
+      expect(map.getAttribute('data-scroll-wheel-zoom')).toBe('false');
+      
+      expect(screen.queryByTestId('zoom-control')).not.toBeInTheDocument();
+      expect(screen.queryByTestId('scale-control')).not.toBeInTheDocument();
     });
   });
 });

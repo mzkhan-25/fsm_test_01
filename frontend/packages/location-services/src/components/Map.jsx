@@ -1,54 +1,49 @@
-import { APIProvider, Map as GoogleMap } from '@vis.gl/react-google-maps';
+import { MapContainer, TileLayer, ZoomControl, ScaleControl } from 'react-leaflet';
+import 'leaflet/dist/leaflet.css';
 import './Map.css';
 
+// Static OpenStreetMap configuration
+const TILE_LAYER_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+
 /**
- * Map component that displays a Google Map with default settings
+ * Map component that displays an OpenStreetMap using Leaflet
  * @param {Object} props - Component props
- * @param {Object} props.center - Map center coordinates {lat: number, lng: number}
+ * @param {Object} props.center - Map center coordinates as {lat: number, lng: number}. 
+ *   Internally converted to Leaflet's [lat, lng] array format.
  * @param {number} props.zoom - Initial zoom level (1-20)
- * @param {string} props.mapId - Google Maps Map ID for styling
  * @param {React.CSSProperties} props.style - Custom styles for the map container
  * @param {string} props.className - Additional CSS classes
+ * @param {boolean} props.zoomControl - Show zoom controls (default: true)
+ * @param {boolean} props.scaleControl - Show scale control (default: true)
+ * @param {boolean} props.scrollWheelZoom - Enable scroll wheel zoom (default: true)
  */
 const Map = ({ 
   center = { lat: 37.7749, lng: -122.4194 }, // Default: San Francisco
   zoom = 12,
-  mapId = 'location-services-map',
   style,
-  className = ''
+  className = '',
+  zoomControl = true,
+  scaleControl = true,
+  scrollWheelZoom = true
 }) => {
-  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-
-  if (!apiKey) {
-    return (
-      <div className={`map-error ${className}`} style={style}>
-        <div className="map-error-content">
-          <h3>Map Configuration Error</h3>
-          <p>Google Maps API key is not configured.</p>
-          <p>Please set VITE_GOOGLE_MAPS_API_KEY in your environment variables.</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <APIProvider apiKey={apiKey}>
-      <div className={`map-wrapper ${className}`} style={style}>
-        <GoogleMap
-          defaultCenter={center}
-          defaultZoom={zoom}
-          mapId={mapId}
-          gestureHandling="greedy"
-          disableDefaultUI={false}
-          zoomControl={true}
-          mapTypeControl={false}
-          scaleControl={true}
-          streetViewControl={false}
-          rotateControl={false}
-          fullscreenControl={true}
+    <div className={`map-wrapper ${className}`} style={style}>
+      <MapContainer
+        center={[center.lat, center.lng]}
+        zoom={zoom}
+        scrollWheelZoom={scrollWheelZoom}
+        zoomControl={false}
+        className="leaflet-map-container"
+      >
+        <TileLayer
+          attribution={ATTRIBUTION}
+          url={TILE_LAYER_URL}
         />
-      </div>
-    </APIProvider>
+        {zoomControl && <ZoomControl position="topright" />}
+        {scaleControl && <ScaleControl position="bottomleft" />}
+      </MapContainer>
+    </div>
   );
 };
 
