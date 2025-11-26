@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import L from 'leaflet';
-import { createTaskMarkerIcon } from './markerUtils';
+import { createTaskMarkerIcon, createTechnicianMarkerIcon } from './markerUtils';
 
 // Mock Leaflet divIcon
 vi.mock('leaflet', () => ({
@@ -99,6 +99,95 @@ describe('markerUtils', () => {
           html: expect.stringContaining('<svg'),
         })
       );
+    });
+  });
+
+  describe('createTechnicianMarkerIcon', () => {
+    it('creates divIcon with correct className', () => {
+      createTechnicianMarkerIcon('available');
+      
+      expect(L.divIcon).toHaveBeenCalledWith(
+        expect.objectContaining({
+          className: 'technician-marker-icon',
+        })
+      );
+    });
+
+    it('creates icon with correct size', () => {
+      createTechnicianMarkerIcon('available');
+      
+      expect(L.divIcon).toHaveBeenCalledWith(
+        expect.objectContaining({
+          iconSize: [32, 40],
+        })
+      );
+    });
+
+    it('creates icon with correct anchor', () => {
+      createTechnicianMarkerIcon('available');
+      
+      expect(L.divIcon).toHaveBeenCalledWith(
+        expect.objectContaining({
+          iconAnchor: [16, 40],
+        })
+      );
+    });
+
+    it('creates icon with correct popup anchor', () => {
+      createTechnicianMarkerIcon('available');
+      
+      expect(L.divIcon).toHaveBeenCalledWith(
+        expect.objectContaining({
+          popupAnchor: [0, -40],
+        })
+      );
+    });
+
+    it('creates icon with green color for available status', () => {
+      createTechnicianMarkerIcon('available');
+      
+      expect(L.divIcon).toHaveBeenCalledWith(
+        expect.objectContaining({
+          html: expect.stringContaining('background-color: #28a745'),
+        })
+      );
+    });
+
+    it('creates icon with yellow color for busy status', () => {
+      createTechnicianMarkerIcon('busy');
+      
+      expect(L.divIcon).toHaveBeenCalledWith(
+        expect.objectContaining({
+          html: expect.stringContaining('background-color: #ffc107'),
+        })
+      );
+    });
+
+    it('creates icon with gray color for offline status', () => {
+      createTechnicianMarkerIcon('offline');
+      
+      expect(L.divIcon).toHaveBeenCalledWith(
+        expect.objectContaining({
+          html: expect.stringContaining('background-color: #6c757d'),
+        })
+      );
+    });
+
+    it('creates icon with person SVG shape', () => {
+      createTechnicianMarkerIcon('available');
+      
+      expect(L.divIcon).toHaveBeenCalledWith(
+        expect.objectContaining({
+          html: expect.stringContaining('<svg'),
+        })
+      );
+    });
+
+    it('uses different SVG path than task marker', () => {
+      const taskIcon = createTaskMarkerIcon('HIGH');
+      const techIcon = createTechnicianMarkerIcon('available');
+      
+      expect(taskIcon.html).not.toBe(techIcon.html);
     });
   });
 });
