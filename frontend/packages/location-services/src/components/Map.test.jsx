@@ -37,6 +37,19 @@ vi.mock('react-leaflet', () => ({
   ),
 }));
 
+// Mock TaskMarkersLayer component
+vi.mock('./TaskMarkersLayer', () => ({
+  default: ({ tasks, onTaskClick }) => (
+    <div 
+      data-testid="task-markers-layer"
+      data-tasks-count={tasks?.length || 0}
+      onClick={() => onTaskClick && onTaskClick({ id: 1 })}
+    >
+      {tasks?.map(t => <span key={t.id} data-testid={`marker-${t.id}`}>{t.title}</span>)}
+    </div>
+  ),
+}));
+
 describe('Map', () => {
   describe('Rendering', () => {
     it('renders the map with default props', () => {
@@ -190,6 +203,51 @@ describe('Map', () => {
     });
   });
 
+  describe('Task Markers', () => {
+    const mockTasks = [
+      { id: 1, title: 'Task 1', coordinates: { lat: 37.77, lng: -122.42 } },
+      { id: 2, title: 'Task 2', coordinates: { lat: 37.78, lng: -122.41 } },
+    ];
+
+    it('renders TaskMarkersLayer', () => {
+      render(<Map />);
+      
+      const markersLayer = screen.getByTestId('task-markers-layer');
+      expect(markersLayer).toBeInTheDocument();
+    });
+
+    it('passes tasks to TaskMarkersLayer', () => {
+      render(<Map tasks={mockTasks} />);
+      
+      const markersLayer = screen.getByTestId('task-markers-layer');
+      expect(markersLayer.getAttribute('data-tasks-count')).toBe('2');
+    });
+
+    it('renders empty tasks by default', () => {
+      render(<Map />);
+      
+      const markersLayer = screen.getByTestId('task-markers-layer');
+      expect(markersLayer.getAttribute('data-tasks-count')).toBe('0');
+    });
+
+    it('renders markers for each task', () => {
+      render(<Map tasks={mockTasks} />);
+      
+      expect(screen.getByTestId('marker-1')).toBeInTheDocument();
+      expect(screen.getByTestId('marker-2')).toBeInTheDocument();
+    });
+
+    it('passes onTaskClick to TaskMarkersLayer', () => {
+      const handleClick = vi.fn();
+      render(<Map tasks={mockTasks} onTaskClick={handleClick} />);
+      
+      const markersLayer = screen.getByTestId('task-markers-layer');
+      markersLayer.click();
+      
+      expect(handleClick).toHaveBeenCalled();
+    });
+  });
+
   describe('Responsive Design', () => {
     it('renders map wrapper with full dimensions', () => {
       render(<Map />);
@@ -241,6 +299,7 @@ describe('Map', () => {
     });
 
     it('renders with all props combined', () => {
+      const mockTasks = [{ id: 1, title: 'Test Task', coordinates: { lat: 0, lng: 0 } }];
       const props = {
         center: { lat: 51.5074, lng: -0.1278 },
         zoom: 10,
@@ -248,7 +307,8 @@ describe('Map', () => {
         className: 'my-custom-map',
         zoomControl: false,
         scaleControl: false,
-        scrollWheelZoom: false
+        scrollWheelZoom: false,
+        tasks: mockTasks,
       };
       
       render(<Map {...props} />);
@@ -265,6 +325,9 @@ describe('Map', () => {
       
       expect(screen.queryByTestId('zoom-control')).not.toBeInTheDocument();
       expect(screen.queryByTestId('scale-control')).not.toBeInTheDocument();
+      
+      const markersLayer = screen.getByTestId('task-markers-layer');
+      expect(markersLayer.getAttribute('data-tasks-count')).toBe('1');
     });
   });
 });

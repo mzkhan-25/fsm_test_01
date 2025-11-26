@@ -1,0 +1,66 @@
+/* Task Marker Styles */
+.task-marker-icon {
+  background: transparent;
+  border: none;
+}
+
+.task-marker {
+  width: 32px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50% 50% 50% 0;
+  transform: rotate(-45deg);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
+.task-marker svg {
+  transform: rotate(45deg);
+}
+
+/* Task Popup Styles */
+.task-popup {
+  min-width: 200px;
+  max-width: 300px;
+}
+
+.task-popup-title {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.task-popup-id {
+  margin: 0 0 4px 0;
+  font-size: 12px;
+  color: #666;
+}
+
+.task-popup-address {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: #444;
+}
+
+.task-popup-description {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  color: #666;
+  line-height: 1.4;
+}
+
+.task-popup-priority {
+  display: inline-block;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+/* Priority marker colors are set inline, but we can add hover states */
+.task-marker:hover {
+  transform: rotate(-45deg) scale(1.1);
+  transition: transform 0.2s ease;
+}
