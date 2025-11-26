@@ -22,6 +22,7 @@
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <firebase-admin.version>9.2.0</firebase-admin.version>
     </properties>
     
     <dependencies>
@@ -75,7 +76,7 @@
         <dependency>
             <groupId>com.google.firebase</groupId>
             <artifactId>firebase-admin</artifactId>
-            <version>9.2.0</version>
+            <version>${firebase-admin.version}</version>
         </dependency>
         
         <!-- Spring Boot Starter Test -->
