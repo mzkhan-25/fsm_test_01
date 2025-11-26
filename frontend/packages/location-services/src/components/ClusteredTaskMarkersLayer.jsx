@@ -14,15 +14,6 @@ import { getPriorityColor, getPriorityLabel, getPriorityTextColor } from '../ser
 import './ClusteredTaskMarkersLayer.css';
 
 /**
- * ClusteredTaskMarkersLayer component that renders task markers with clustering support
- * @param {Object} props - Component props
- * @param {Array} props.tasks - Array of task objects with coordinates
- * @param {function} props.onTaskClick - Optional handler called when a task marker is clicked
- * @param {function} props.onAssignTask - Optional handler for assigning a task
- * @param {function} props.onViewDetails - Optional handler for viewing task details
- * @param {Object} props.clusterOptions - Optional clustering configuration
- */
-/**
  * Gets initial bounds from map instance
  * @param {Object} map - Leaflet map instance
  * @returns {Object} Bounds object with west, south, east, north
@@ -37,6 +28,19 @@ function getMapBoundsObject(map) {
   };
 }
 
+/**
+ * ClusteredTaskMarkersLayer component that renders task markers with clustering support.
+ * Clusters task markers at lower zoom levels and expands them when zoomed in.
+ * Clusters are color-coded by the highest priority task in the cluster.
+ * 
+ * @param {Object} props - Component props
+ * @param {Array} props.tasks - Array of task objects with coordinates
+ * @param {function} props.onTaskClick - Optional handler called when a task marker is clicked
+ * @param {function} props.onAssignTask - Optional handler for assigning a task
+ * @param {function} props.onViewDetails - Optional handler for viewing task details
+ * @param {Object} props.clusterOptions - Optional clustering configuration
+ * @returns {JSX.Element|null} Rendered markers layer or null if no tasks
+ */
 const ClusteredTaskMarkersLayer = ({ 
   tasks = [], 
   onTaskClick, 
