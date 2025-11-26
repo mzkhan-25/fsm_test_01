@@ -74,6 +74,38 @@ public interface NotificationRepository extends JpaRepository<Notification, Long
     long countByUserIdAndRead(Long userId, Boolean read);
     
     /**
+     * Find user's recent notifications from the last specified number of days, ordered by creation date descending.
+     * Domain invariant: Notifications are retained for 30 days, then archived.
+     * Uses createdAt to include all notifications including those not yet sent.
+     * @param userId The user's ID
+     * @param sinceDate The start date (typically 30 days ago)
+     * @return List of notifications created after the specified date, ordered by creation date descending
+     */
+    @Query("SELECT n FROM Notification n WHERE n.userId = :userId AND n.createdAt >= :sinceDate ORDER BY n.createdAt DESC")
+    List<Notification> findRecentByUserId(@Param("userId") Long userId, @Param("sinceDate") LocalDateTime sinceDate);
+    
+    /**
+     * Find user's recent notifications from the last 30 days, ordered by creation date descending.
+     * Convenience method that uses the default 30-day retention period.
+     * @param userId The user's ID
+     * @return List of notifications from the last 30 days
+     */
+    default List<Notification> findRecentNotificationsForUser(Long userId) {
+        LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
+        return findRecentByUserId(userId, thirtyDaysAgo);
+    }
+    
+    /**
+     * Count unread notifications for a user.
+     * Convenience method for counting unread notifications.
+     * @param userId The user's ID
+     * @return Count of unread notifications
+     */
+    default long countUnreadForUser(Long userId) {
+        return countByUserIdAndRead(userId, false);
+    }
+    
+    /**
      * Returns hardcoded sample notifications for initial development
      * This method provides sample notifications with various types and statuses
      */

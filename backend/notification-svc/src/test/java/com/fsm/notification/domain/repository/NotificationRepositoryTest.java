@@ -365,4 +365,207 @@ class NotificationRepositoryTest {
         
         assertEquals(2, allNotifications.size());
     }
+    
+    @Test
+    void testFindRecentByUserId() {
+        LocalDateTime now = LocalDateTime.now();
+        
+        // Create notification from 10 days ago (within 30 days)
+        Notification recentNotification = Notification.builder()
+            .userId(101L)
+            .type(NotificationType.PUSH)
+            .title("Recent")
+            .message("Recent message")
+            .read(false)
+            .createdAt(now.minusDays(10))
+            .build();
+        
+        // Create notification from 40 days ago (outside 30 days)
+        Notification oldNotification = Notification.builder()
+            .userId(101L)
+            .type(NotificationType.EMAIL)
+            .title("Old")
+            .message("Old message")
+            .read(false)
+            .createdAt(now.minusDays(40))
+            .build();
+        
+        // Create notification for different user
+        Notification otherUserNotification = Notification.builder()
+            .userId(102L)
+            .type(NotificationType.PUSH)
+            .title("Other User")
+            .message("Other user message")
+            .read(false)
+            .createdAt(now.minusDays(5))
+            .build();
+        
+        notificationRepository.save(recentNotification);
+        notificationRepository.save(oldNotification);
+        notificationRepository.save(otherUserNotification);
+        
+        // Query for notifications from last 30 days
+        LocalDateTime thirtyDaysAgo = now.minusDays(30);
+        List<Notification> recentNotifications = notificationRepository.findRecentByUserId(101L, thirtyDaysAgo);
+        
+        assertEquals(1, recentNotifications.size());
+        assertEquals("Recent", recentNotifications.get(0).getTitle());
+        assertEquals(101L, recentNotifications.get(0).getUserId());
+    }
+    
+    @Test
+    void testFindRecentByUserIdOrdersByCreatedAtDesc() {
+        LocalDateTime now = LocalDateTime.now();
+        
+        Notification older = Notification.builder()
+            .userId(101L)
+            .type(NotificationType.PUSH)
+            .title("Older")
+            .message("Older message")
+            .read(false)
+            .createdAt(now.minusDays(20))
+            .build();
+        
+        Notification newer = Notification.builder()
+            .userId(101L)
+            .type(NotificationType.EMAIL)
+            .title("Newer")
+            .message("Newer message")
+            .read(false)
+            .createdAt(now.minusDays(5))
+            .build();
+        
+        notificationRepository.save(older);
+        notificationRepository.save(newer);
+        
+        LocalDateTime thirtyDaysAgo = now.minusDays(30);
+        List<Notification> notifications = notificationRepository.findRecentByUserId(101L, thirtyDaysAgo);
+        
+        assertEquals(2, notifications.size());
+        assertEquals("Newer", notifications.get(0).getTitle());
+        assertEquals("Older", notifications.get(1).getTitle());
+    }
+    
+    @Test
+    void testFindRecentByUserIdReturnsEmptyForNoRecentNotifications() {
+        LocalDateTime now = LocalDateTime.now();
+        
+        // Create notification from 40 days ago (outside 30 days)
+        Notification oldNotification = Notification.builder()
+            .userId(101L)
+            .type(NotificationType.PUSH)
+            .title("Old")
+            .message("Old message")
+            .read(false)
+            .createdAt(now.minusDays(40))
+            .build();
+        
+        notificationRepository.save(oldNotification);
+        
+        LocalDateTime thirtyDaysAgo = now.minusDays(30);
+        List<Notification> notifications = notificationRepository.findRecentByUserId(101L, thirtyDaysAgo);
+        
+        assertTrue(notifications.isEmpty());
+    }
+    
+    @Test
+    void testFindRecentNotificationsForUser() {
+        LocalDateTime now = LocalDateTime.now();
+        
+        // Create notification within 30 days
+        Notification recentNotification = Notification.builder()
+            .userId(101L)
+            .type(NotificationType.PUSH)
+            .title("Recent")
+            .message("Recent message")
+            .read(false)
+            .createdAt(now.minusDays(15))
+            .build();
+        
+        // Create notification outside 30 days
+        Notification oldNotification = Notification.builder()
+            .userId(101L)
+            .type(NotificationType.EMAIL)
+            .title("Old")
+            .message("Old message")
+            .read(false)
+            .createdAt(now.minusDays(45))
+            .build();
+        
+        notificationRepository.save(recentNotification);
+        notificationRepository.save(oldNotification);
+        
+        List<Notification> notifications = notificationRepository.findRecentNotificationsForUser(101L);
+        
+        assertEquals(1, notifications.size());
+        assertEquals("Recent", notifications.get(0).getTitle());
+    }
+    
+    @Test
+    void testCountUnreadForUser() {
+        Notification unread1 = Notification.builder()
+            .userId(101L)
+            .type(NotificationType.PUSH)
+            .title("Unread 1")
+            .message("Message 1")
+            .read(false)
+            .build();
+        
+        Notification unread2 = Notification.builder()
+            .userId(101L)
+            .type(NotificationType.EMAIL)
+            .title("Unread 2")
+            .message("Message 2")
+            .read(false)
+            .build();
+        
+        Notification read = Notification.builder()
+            .userId(101L)
+            .type(NotificationType.SMS)
+            .title("Read")
+            .message("Read message")
+            .read(true)
+            .build();
+        
+        Notification otherUser = Notification.builder()
+            .userId(102L)
+            .type(NotificationType.PUSH)
+            .title("Other User")
+            .message("Other user message")
+            .read(false)
+            .build();
+        
+        notificationRepository.save(unread1);
+        notificationRepository.save(unread2);
+        notificationRepository.save(read);
+        notificationRepository.save(otherUser);
+        
+        long count = notificationRepository.countUnreadForUser(101L);
+        
+        assertEquals(2, count);
+    }
+    
+    @Test
+    void testCountUnreadForUserReturnsZeroWhenNoUnread() {
+        Notification read = Notification.builder()
+            .userId(101L)
+            .type(NotificationType.PUSH)
+            .title("Read")
+            .message("Message")
+            .read(true)
+            .build();
+        
+        notificationRepository.save(read);
+        
+        long count = notificationRepository.countUnreadForUser(101L);
+        
+        assertEquals(0, count);
+    }
+    
+    @Test
+    void testCountUnreadForUserReturnsZeroForNonExistentUser() {
+        long count = notificationRepository.countUnreadForUser(999L);
+        
+        assertEquals(0, count);
+    }
 }
