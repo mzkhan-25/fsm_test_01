@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { getTaskById, updateTaskStatus, completeTask } from '../services/taskService';
+import { openNavigation, extractCoordinatesFromAddress } from '../utils/navigationUtils';
 import TaskCompletionModal from './TaskCompletionModal';
 import './TaskDetailView.css';
 
@@ -46,9 +47,23 @@ const TaskDetailView = ({ taskId, onBack, onStatusUpdate }) => {
 
   const handleStartNavigation = () => {
     const address = task.clientAddress || task.address;
-    if (address) {
-      const encodedAddress = encodeURIComponent(address);
-      window.open(`https://www.google.com/maps/dir/?api=1&destination=${encodedAddress}`, '_blank');
+    if (!address) {
+      setError('Cannot start navigation: No address available');
+      return;
+    }
+
+    // Try to extract coordinates from address if they are embedded
+    const coordinates = extractCoordinatesFromAddress(address);
+    
+    // Open navigation with coordinates if available, otherwise use address
+    const success = openNavigation({
+      address,
+      latitude: coordinates?.latitude,
+      longitude: coordinates?.longitude,
+    });
+
+    if (!success) {
+      setError('Unable to open map application. Please check if a map app is installed.');
     }
   };
 

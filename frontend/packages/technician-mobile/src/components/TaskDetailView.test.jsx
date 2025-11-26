@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import TaskDetailView from './TaskDetailView';
 import * as taskService from '../services/taskService';
+import * as navigationUtils from '../utils/navigationUtils';
 
 vi.mock('../services/taskService', () => ({
   getTaskById: vi.fn(),
@@ -9,12 +10,10 @@ vi.mock('../services/taskService', () => ({
   completeTask: vi.fn(),
 }));
 
-// Mock window.open
-const mockOpen = vi.fn();
-Object.defineProperty(window, 'open', {
-  value: mockOpen,
-  writable: true,
-});
+vi.mock('../utils/navigationUtils', () => ({
+  openNavigation: vi.fn(),
+  extractCoordinatesFromAddress: vi.fn(),
+}));
 
 describe('TaskDetailView', () => {
   const mockOnBack = vi.fn();
@@ -32,7 +31,8 @@ describe('TaskDetailView', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockOpen.mockClear();
+    navigationUtils.openNavigation.mockReturnValue(true);
+    navigationUtils.extractCoordinatesFromAddress.mockReturnValue(null);
   });
 
   afterEach(() => {
@@ -421,8 +421,10 @@ describe('TaskDetailView', () => {
   });
 
   describe('Start Navigation', () => {
-    it('should open Google Maps with encoded address when clicked', async () => {
+    it('should call openNavigation with address when clicked', async () => {
       taskService.getTaskById.mockResolvedValue(mockTask);
+      navigationUtils.extractCoordinatesFromAddress.mockReturnValue(null);
+      navigationUtils.openNavigation.mockReturnValue(true);
 
       render(<TaskDetailView taskId="1" onBack={mockOnBack} />);
 
@@ -432,15 +434,19 @@ describe('TaskDetailView', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Start navigation to client address' }));
 
-      expect(mockOpen).toHaveBeenCalledWith(
-        'https://www.google.com/maps/dir/?api=1&destination=123%20Main%20St%2C%20City%2C%20State%2012345',
-        '_blank'
-      );
+      expect(navigationUtils.extractCoordinatesFromAddress).toHaveBeenCalledWith('123 Main St, City, State 12345');
+      expect(navigationUtils.openNavigation).toHaveBeenCalledWith({
+        address: '123 Main St, City, State 12345',
+        latitude: undefined,
+        longitude: undefined,
+      });
     });
 
     it('should use fallback address for navigation', async () => {
       const taskWithFallback = { ...mockTask, clientAddress: null, address: '789 Elm St' };
       taskService.getTaskById.mockResolvedValue(taskWithFallback);
+      navigationUtils.extractCoordinatesFromAddress.mockReturnValue(null);
+      navigationUtils.openNavigation.mockReturnValue(true);
 
       render(<TaskDetailView taskId="1" onBack={mockOnBack} />);
 
@@ -450,13 +456,39 @@ describe('TaskDetailView', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Start navigation to client address' }));
 
-      expect(mockOpen).toHaveBeenCalledWith(
-        'https://www.google.com/maps/dir/?api=1&destination=789%20Elm%20St',
-        '_blank'
-      );
+      expect(navigationUtils.openNavigation).toHaveBeenCalledWith({
+        address: '789 Elm St',
+        latitude: undefined,
+        longitude: undefined,
+      });
     });
 
-    it('should not open maps when no address is available', async () => {
+    it('should extract and use coordinates from address if available', async () => {
+      const taskWithCoords = { ...mockTask, clientAddress: '123 Main St (40.7128, -74.0060)' };
+      taskService.getTaskById.mockResolvedValue(taskWithCoords);
+      navigationUtils.extractCoordinatesFromAddress.mockReturnValue({
+        latitude: 40.7128,
+        longitude: -74.0060,
+      });
+      navigationUtils.openNavigation.mockReturnValue(true);
+
+      render(<TaskDetailView taskId="1" onBack={mockOnBack} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Fix HVAC System')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Start navigation to client address' }));
+
+      expect(navigationUtils.extractCoordinatesFromAddress).toHaveBeenCalledWith('123 Main St (40.7128, -74.0060)');
+      expect(navigationUtils.openNavigation).toHaveBeenCalledWith({
+        address: '123 Main St (40.7128, -74.0060)',
+        latitude: 40.7128,
+        longitude: -74.0060,
+      });
+    });
+
+    it('should show error when no address is available', async () => {
       const taskNoAddress = { ...mockTask, clientAddress: null, address: null };
       taskService.getTaskById.mockResolvedValue(taskNoAddress);
 
@@ -468,7 +500,28 @@ describe('TaskDetailView', () => {
 
       fireEvent.click(screen.getByRole('button', { name: 'Start navigation to client address' }));
 
-      expect(mockOpen).not.toHaveBeenCalled();
+      await waitFor(() => {
+        expect(screen.getByText('Cannot start navigation: No address available')).toBeInTheDocument();
+      });
+      expect(navigationUtils.openNavigation).not.toHaveBeenCalled();
+    });
+
+    it('should show error when openNavigation fails', async () => {
+      taskService.getTaskById.mockResolvedValue(mockTask);
+      navigationUtils.extractCoordinatesFromAddress.mockReturnValue(null);
+      navigationUtils.openNavigation.mockReturnValue(false);
+
+      render(<TaskDetailView taskId="1" onBack={mockOnBack} />);
+
+      await waitFor(() => {
+        expect(screen.getByText('Fix HVAC System')).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Start navigation to client address' }));
+
+      await waitFor(() => {
+        expect(screen.getByText('Unable to open map application. Please check if a map app is installed.')).toBeInTheDocument();
+      });
     });
   });
 
