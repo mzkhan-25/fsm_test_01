@@ -5,6 +5,7 @@ import {
   fetchUnassignedTasks,
   getPriorityColor,
   getPriorityLabel,
+  getPriorityTextColor,
 } from './taskService';
 
 describe('taskService', () => {
@@ -66,6 +67,28 @@ describe('taskService', () => {
     });
   });
 
+  describe('getPriorityTextColor', () => {
+    it('returns black for LOW priority', () => {
+      expect(getPriorityTextColor(TaskPriority.LOW)).toBe('#000000');
+    });
+
+    it('returns white for HIGH priority', () => {
+      expect(getPriorityTextColor(TaskPriority.HIGH)).toBe('#ffffff');
+    });
+
+    it('returns white for MEDIUM priority', () => {
+      expect(getPriorityTextColor(TaskPriority.MEDIUM)).toBe('#ffffff');
+    });
+
+    it('returns white for unknown priority', () => {
+      expect(getPriorityTextColor('UNKNOWN')).toBe('#ffffff');
+    });
+
+    it('returns white for undefined priority', () => {
+      expect(getPriorityTextColor(undefined)).toBe('#ffffff');
+    });
+  });
+
   describe('getPriorityLabel', () => {
     it('returns "High" for HIGH priority', () => {
       expect(getPriorityLabel(TaskPriority.HIGH)).toBe('High');
@@ -118,10 +141,10 @@ describe('taskService', () => {
       const result = await fetchUnassignedTasks();
 
       expect(global.fetch).toHaveBeenCalledTimes(1);
-      const calledUrl = new URL(global.fetch.mock.calls[0][0]);
-      expect(calledUrl.searchParams.get('status')).toBe('UNASSIGNED');
-      expect(calledUrl.searchParams.get('page')).toBe('0');
-      expect(calledUrl.searchParams.get('pageSize')).toBe('100');
+      const calledUrl = global.fetch.mock.calls[0][0];
+      expect(calledUrl).toContain('status=UNASSIGNED');
+      expect(calledUrl).toContain('page=0');
+      expect(calledUrl).toContain('pageSize=100');
       expect(result).toEqual(mockResponse);
     });
 
@@ -135,9 +158,9 @@ describe('taskService', () => {
 
       await fetchUnassignedTasks({ page: 1, pageSize: 50 });
 
-      const calledUrl = new URL(global.fetch.mock.calls[0][0]);
-      expect(calledUrl.searchParams.get('page')).toBe('1');
-      expect(calledUrl.searchParams.get('pageSize')).toBe('50');
+      const calledUrl = global.fetch.mock.calls[0][0];
+      expect(calledUrl).toContain('page=1');
+      expect(calledUrl).toContain('pageSize=50');
     });
 
     it('throws error on fetch failure', async () => {

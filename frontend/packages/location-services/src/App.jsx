@@ -10,8 +10,12 @@ function App() {
     refreshInterval: REFRESH_INTERVAL 
   });
 
+  // Handler for task marker clicks
+  // TODO: Integrate with task detail view or navigation when available
   const handleTaskClick = (task) => {
-    console.log('Task clicked:', task);
+    // Task selection functionality will be implemented in future story
+    // For now, the popup displays task details on click
+    void task; // Acknowledge parameter to avoid unused warning
   };
 
   return (

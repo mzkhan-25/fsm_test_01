@@ -31,12 +31,15 @@ export const TaskStatus = {
  * @returns {Promise<Object>} Task list response with tasks and pagination info
  */
 export async function fetchUnassignedTasks({ page = 0, pageSize = 100 } = {}) {
-  const url = new URL(`${API_BASE_URL}/tasks`, window.location.origin);
-  url.searchParams.set('status', TaskStatus.UNASSIGNED);
-  url.searchParams.set('page', page.toString());
-  url.searchParams.set('pageSize', pageSize.toString());
+  const params = new URLSearchParams({
+    status: TaskStatus.UNASSIGNED,
+    page: page.toString(),
+    pageSize: pageSize.toString(),
+  });
+  
+  const url = `${API_BASE_URL}/tasks?${params.toString()}`;
 
-  const response = await fetch(url.toString());
+  const response = await fetch(url);
   
   if (!response.ok) {
     throw new Error(`Failed to fetch tasks: ${response.status} ${response.statusText}`);
@@ -61,6 +64,16 @@ export function getPriorityColor(priority) {
     default:
       return '#6c757d'; // Gray for unknown
   }
+}
+
+/**
+ * Gets text color for a given priority (for contrast on priority badge)
+ * @param {string} priority - Task priority (HIGH, MEDIUM, LOW)
+ * @returns {string} CSS color value for text
+ */
+export function getPriorityTextColor(priority) {
+  // LOW priority has yellow background, needs dark text for contrast
+  return priority === TaskPriority.LOW ? '#000000' : '#ffffff';
 }
 
 /**

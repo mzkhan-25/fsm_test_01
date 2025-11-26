@@ -1,5 +1,5 @@
 import { Marker, Popup } from 'react-leaflet';
-import { getPriorityColor, getPriorityLabel } from '../services/taskService';
+import { getPriorityColor, getPriorityLabel, getPriorityTextColor } from '../services/taskService';
 import { createTaskMarkerIcon } from '../utils/markerUtils';
 
 /**
@@ -49,7 +49,7 @@ const TaskMarker = ({ task, onClick }) => {
             className="task-popup-priority"
             style={{ 
               backgroundColor: getPriorityColor(priority),
-              color: priority === 'LOW' ? '#000' : '#fff',
+              color: getPriorityTextColor(priority),
             }}
           >
             {priorityLabel} Priority
