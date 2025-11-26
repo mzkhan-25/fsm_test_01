@@ -10,6 +10,13 @@ A mobile-optimized web application for field technicians to view and manage thei
 - **Mobile-First Design**: Optimized for mobile devices with touch-friendly navigation
 - **Offline Detection**: Displays online/offline status to users
 - **Authentication**: Secure login for field technicians
+- **Push Notifications**: Receive notifications for new task assignments
+  - Request notification permissions from users
+  - Register device tokens with backend
+  - Display foreground notifications as in-app alerts
+  - Handle background notifications as system notifications
+  - Deep linking to task detail from notifications
+  - App badge updates with unread notification count
 
 ## Tech Stack
 
@@ -79,11 +86,16 @@ technician-mobile/
 │   │   ├── LoginPage.jsx    # Login form component
 │   │   ├── NavigationTabs.jsx # Bottom navigation tabs
 │   │   ├── TaskListView.jsx # Task list display
+│   │   ├── TaskDetailView.jsx # Task detail page
 │   │   ├── MapView.jsx      # Map placeholder
-│   │   └── ProfileView.jsx  # User profile page
+│   │   ├── ProfileView.jsx  # User profile page
+│   │   ├── NotificationAlert.jsx # In-app notification alert
+│   │   └── NotificationBadge.jsx # Unread count badge
 │   ├── services/            # API services
 │   │   ├── authService.js   # Authentication API
-│   │   └── taskService.js   # Task management API
+│   │   ├── taskService.js   # Task management API
+│   │   ├── locationService.js # Location tracking API
+│   │   └── notificationService.js # Push notification handling
 │   ├── test/                # Test utilities
 │   │   └── setup.js         # Vitest setup
 │   ├── App.jsx              # Main app component
@@ -114,6 +126,14 @@ The app communicates with the backend API at the URL specified by `VITE_API_BASE
 
 - `PUT /api/technicians/location` - Update technician location
 
+### Notifications
+
+- `POST /api/notifications/devices` - Register device token
+- `DELETE /api/notifications/devices/:token` - Unregister device token
+- `GET /api/notifications` - Get notifications for user
+- `PUT /api/notifications/:id/read` - Mark notification as read
+- `PUT /api/notifications/read-all` - Mark all notifications as read
+
 ## Navigation
 
 The app uses a bottom tab navigation with three main views:
@@ -122,7 +142,31 @@ The app uses a bottom tab navigation with three main views:
 2. **Map** (🗺️) - Map view for navigation (placeholder)
 3. **Profile** (👤) - User profile and settings
 
+## Push Notifications
+
+The app supports web push notifications for task assignments:
+
+### Flow
+
+1. **On Login**: App requests notification permission and generates device token
+2. **Device Registration**: Token is sent to backend for push notification delivery
+3. **Foreground Notifications**: Displayed as an in-app alert banner
+4. **Background Notifications**: Displayed as system notifications
+5. **Deep Linking**: Tapping a notification navigates to the task detail
+6. **Badge**: Unread count displayed in document title and app badge (where supported)
+
+### Features
+
+- Permission request with graceful degradation
+- Device token management (generate, store, clear)
+- In-app notification alert with auto-dismiss
+- System notification with click handler
+- Unread count tracking with badge updates
+- Cleanup on logout
+
 ## Related Issues
 
 - Story: STORY-007: View Assigned Tasks Mobile
+- Story: STORY-012: Technician Notification on Task Assignment
 - Task: TASK-023: Set Up Mobile App Project
+- Task: TASK-046: Implement Push Notification Handling in Mobile

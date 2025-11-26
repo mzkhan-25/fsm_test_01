@@ -3,6 +3,7 @@ import { render, screen, fireEvent, waitFor, act } from '@testing-library/react'
 import App from './App';
 import * as authService from './services/authService';
 import * as taskService from './services/taskService';
+import * as notificationService from './services/notificationService';
 
 vi.mock('./services/authService', () => ({
   isAuthenticated: vi.fn(),
@@ -16,6 +17,17 @@ vi.mock('./services/taskService', () => ({
   getTaskById: vi.fn(),
   updateTaskStatus: vi.fn(),
   updateLocation: vi.fn().mockResolvedValue({}),
+}));
+
+vi.mock('./services/notificationService', () => ({
+  initializePushNotifications: vi.fn().mockResolvedValue({
+    supported: true,
+    permission: 'granted',
+    deviceToken: 'test_token',
+    registered: true,
+  }),
+  cleanupPushNotifications: vi.fn().mockResolvedValue(undefined),
+  addNotificationListener: vi.fn().mockReturnValue(() => {}),
 }));
 
 describe('App', () => {
@@ -375,6 +387,91 @@ describe('App', () => {
 
       await waitFor(() => {
         expect(screen.getByLabelText('Email Address')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('Push Notifications', () => {
+    beforeEach(() => {
+      authService.isAuthenticated.mockReturnValue(true);
+      authService.getCurrentUser.mockReturnValue({
+        id: '123',
+        name: 'John',
+        email: 'john@example.com',
+        role: 'TECHNICIAN',
+      });
+    });
+
+    it('should initialize push notifications when logged in', async () => {
+      render(<App />);
+
+      await waitFor(() => {
+        expect(notificationService.initializePushNotifications).toHaveBeenCalled();
+      });
+    });
+
+    it('should register notification listener on mount', async () => {
+      render(<App />);
+
+      await waitFor(() => {
+        expect(notificationService.addNotificationListener).toHaveBeenCalled();
+      });
+    });
+
+    it('should cleanup notifications on logout', async () => {
+      render(<App />);
+
+      // Navigate to profile
+      fireEvent.click(screen.getByLabelText('Profile'));
+
+      await waitFor(() => {
+        expect(
+          screen.getByRole('button', { name: 'Logout from account' })
+        ).toBeInTheDocument();
+      });
+
+      fireEvent.click(screen.getByRole('button', { name: 'Logout from account' }));
+
+      await waitFor(() => {
+        expect(notificationService.cleanupPushNotifications).toHaveBeenCalled();
+      });
+    });
+
+    it('should navigate to task when notification tap event is received', async () => {
+      let capturedListener;
+      notificationService.addNotificationListener.mockImplementation((listener) => {
+        capturedListener = listener;
+        return () => {};
+      });
+
+      const mockTask = {
+        id: '456',
+        title: 'Test Task',
+        description: 'Test Description',
+        clientAddress: '456 Oak St',
+        priority: 'HIGH',
+        status: 'ASSIGNED',
+        estimatedDuration: 30,
+      };
+      taskService.getAssignedTasks.mockResolvedValue([mockTask]);
+      taskService.getTaskById.mockResolvedValue(mockTask);
+
+      render(<App />);
+
+      await waitFor(() => {
+        expect(screen.getByText('My Tasks')).toBeInTheDocument();
+      });
+
+      // Simulate notification tap event
+      act(() => {
+        capturedListener({
+          type: 'notification_tap',
+          taskId: '456',
+        });
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('← Back')).toBeInTheDocument();
       });
     });
   });
