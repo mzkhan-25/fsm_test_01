@@ -52,7 +52,8 @@ const DragOverlay = ({
     <>
       {/* Drop zone circles around technicians */}
       {technicians.map((technician) => {
-        if (technician.latitude == null || technician.longitude == null) {
+        if (technician.latitude === null || technician.latitude === undefined || 
+            technician.longitude === null || technician.longitude === undefined) {
           return null;
         }
 

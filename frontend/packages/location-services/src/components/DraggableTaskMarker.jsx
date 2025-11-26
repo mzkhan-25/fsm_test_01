@@ -109,7 +109,8 @@ const DraggableTaskMarker = ({
     const dragPoint = map.latLngToContainerPoint(latlng);
     
     for (const technician of technicians) {
-      if (technician.latitude == null || technician.longitude == null) {
+      if (technician.latitude === null || technician.latitude === undefined || 
+          technician.longitude === null || technician.longitude === undefined) {
         continue;
       }
       
