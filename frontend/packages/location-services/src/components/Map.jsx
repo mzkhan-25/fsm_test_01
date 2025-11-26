@@ -20,6 +20,8 @@ const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">Op
  * @param {boolean} props.scrollWheelZoom - Enable scroll wheel zoom (default: true)
  * @param {Array} props.tasks - Array of task objects with coordinates for markers
  * @param {function} props.onTaskClick - Callback when a task marker is clicked
+ * @param {function} props.onAssignTask - Callback when assign button is clicked
+ * @param {function} props.onViewDetails - Callback when view details button is clicked
  */
 const Map = ({ 
   center = { lat: 37.7749, lng: -122.4194 }, // Default: San Francisco
@@ -30,7 +32,9 @@ const Map = ({
   scaleControl = true,
   scrollWheelZoom = true,
   tasks = [],
-  onTaskClick
+  onTaskClick,
+  onAssignTask,
+  onViewDetails
 }) => {
   return (
     <div className={`map-wrapper ${className}`} style={style}>
@@ -47,7 +51,12 @@ const Map = ({
         />
         {zoomControl && <ZoomControl position="topright" />}
         {scaleControl && <ScaleControl position="bottomleft" />}
-        <TaskMarkersLayer tasks={tasks} onTaskClick={onTaskClick} />
+        <TaskMarkersLayer 
+          tasks={tasks} 
+          onTaskClick={onTaskClick}
+          onAssignTask={onAssignTask}
+          onViewDetails={onViewDetails}
+        />
       </MapContainer>
     </div>
   );

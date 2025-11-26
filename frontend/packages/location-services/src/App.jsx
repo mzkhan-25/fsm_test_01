@@ -11,11 +11,25 @@ function App() {
   });
 
   // Handler for task marker clicks
-  // TODO: Integrate with task detail view or navigation when available
   const handleTaskClick = (task) => {
-    // Task selection functionality will be implemented in future story
-    // For now, the popup displays task details on click
+    // Task selection functionality - popup displays automatically
     void task; // Acknowledge parameter to avoid unused warning
+  };
+
+  // Handler for assigning tasks
+  const handleAssignTask = (task) => {
+    // Task assignment functionality will be implemented in future story
+    // For now, just log the action
+    console.log('Assign task:', task.id);
+    // TODO: Integrate with task assignment workflow
+  };
+
+  // Handler for viewing task details
+  const handleViewDetails = (task) => {
+    // Navigate to task detail view
+    // For now, just log the action
+    console.log('View task details:', task.id);
+    // TODO: Integrate with task detail view or navigation when available
   };
 
   return (
@@ -41,7 +55,12 @@ function App() {
         </div>
       </header>
       <main className="map-container">
-        <Map tasks={tasks} onTaskClick={handleTaskClick} />
+        <Map 
+          tasks={tasks} 
+          onTaskClick={handleTaskClick}
+          onAssignTask={handleAssignTask}
+          onViewDetails={handleViewDetails}
+        />
       </main>
     </div>
   )

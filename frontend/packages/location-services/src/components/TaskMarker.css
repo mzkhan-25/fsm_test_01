@@ -21,42 +21,113 @@
 
 /* Task Popup Styles */
 .task-popup {
-  min-width: 200px;
-  max-width: 300px;
+  min-width: 240px;
+  max-width: 320px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
 }
 
 .task-popup-title {
-  margin: 0 0 8px 0;
+  margin: 0 0 12px 0;
   font-size: 16px;
   font-weight: 600;
-  color: #333;
+  color: #1a1a1a;
+  line-height: 1.3;
+}
+
+.task-popup-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 8px;
 }
 
 .task-popup-id {
-  margin: 0 0 4px 0;
+  margin: 0;
   font-size: 12px;
   color: #666;
-}
-
-.task-popup-address {
-  margin: 0 0 8px 0;
-  font-size: 14px;
-  color: #444;
-}
-
-.task-popup-description {
-  margin: 0 0 12px 0;
-  font-size: 13px;
-  color: #666;
-  line-height: 1.4;
+  font-weight: 500;
 }
 
 .task-popup-priority {
   display: inline-block;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 12px;
-  font-weight: 500;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.task-popup-address,
+.task-popup-duration {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  color: #555;
+  line-height: 1.5;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.task-popup-icon {
+  flex-shrink: 0;
+  color: #888;
+}
+
+.task-popup-description {
+  margin: 0 0 16px 0;
+  font-size: 13px;
+  color: #666;
+  line-height: 1.5;
+  padding: 10px;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  border-left: 3px solid #dee2e6;
+  cursor: help;
+}
+
+.task-popup-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.task-popup-button {
+  flex: 1;
+  padding: 8px 12px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.task-popup-button-primary {
+  background-color: #0d6efd;
+  color: white;
+}
+
+.task-popup-button-primary:hover {
+  background-color: #0b5ed7;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(13, 110, 253, 0.3);
+}
+
+.task-popup-button-secondary {
+  background-color: #6c757d;
+  color: white;
+}
+
+.task-popup-button-secondary:hover {
+  background-color: #5c636a;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(108, 117, 125, 0.3);
+}
+
+.task-popup-button:active {
+  transform: translateY(0);
 }
 
 /* Priority marker colors are set inline, but we can add hover states */

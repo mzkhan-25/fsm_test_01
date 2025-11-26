@@ -39,13 +39,15 @@ vi.mock('react-leaflet', () => ({
 
 // Mock TaskMarkersLayer component
 vi.mock('./TaskMarkersLayer', () => ({
-  default: ({ tasks, onTaskClick }) => (
+  default: ({ tasks, onTaskClick, onAssignTask, onViewDetails }) => (
     <div 
       data-testid="task-markers-layer"
       data-tasks-count={tasks?.length || 0}
       onClick={() => onTaskClick && onTaskClick({ id: 1 })}
     >
       {tasks?.map(t => <span key={t.id} data-testid={`marker-${t.id}`}>{t.title}</span>)}
+      {onAssignTask && <button onClick={() => onAssignTask({ id: 1 })}>Assign</button>}
+      {onViewDetails && <button onClick={() => onViewDetails({ id: 1 })}>Details</button>}
     </div>
   ),
 }));
@@ -328,6 +330,32 @@ describe('Map', () => {
       
       const markersLayer = screen.getByTestId('task-markers-layer');
       expect(markersLayer.getAttribute('data-tasks-count')).toBe('1');
+    });
+  });
+
+  describe('New callback props', () => {
+    it('passes onAssignTask to TaskMarkersLayer', async () => {
+      const user = await import('@testing-library/user-event').then(m => m.default.setup());
+      const handleAssignTask = vi.fn();
+      
+      render(<Map onAssignTask={handleAssignTask} />);
+      
+      const assignButton = screen.getByText('Assign');
+      await user.click(assignButton);
+      
+      expect(handleAssignTask).toHaveBeenCalledWith({ id: 1 });
+    });
+
+    it('passes onViewDetails to TaskMarkersLayer', async () => {
+      const user = await import('@testing-library/user-event').then(m => m.default.setup());
+      const handleViewDetails = vi.fn();
+      
+      render(<Map onViewDetails={handleViewDetails} />);
+      
+      const detailsButton = screen.getByText('Details');
+      await user.click(detailsButton);
+      
+      expect(handleViewDetails).toHaveBeenCalledWith({ id: 1 });
     });
   });
 });

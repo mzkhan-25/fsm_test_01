@@ -5,13 +5,15 @@ import TaskMarkersLayer from './TaskMarkersLayer';
 
 // Mock TaskMarker component
 vi.mock('./TaskMarker', () => ({
-  default: ({ task, onClick }) => (
+  default: ({ task, onClick, onAssignTask, onViewDetails }) => (
     <div 
       data-testid={`task-marker-${task.id}`}
       data-task-id={task.id}
       onClick={() => onClick?.(task)}
     >
       {task.title}
+      <button onClick={() => onAssignTask?.(task)}>Assign</button>
+      <button onClick={() => onViewDetails?.(task)}>Details</button>
     </div>
   ),
 }));
@@ -117,6 +119,32 @@ describe('TaskMarkersLayer', () => {
       render(<TaskMarkersLayer tasks={mockTasks} />);
       
       await expect(user.click(screen.getByTestId('task-marker-1'))).resolves.not.toThrow();
+    });
+  });
+
+  describe('New handler props', () => {
+    it('passes onAssignTask handler to markers', async () => {
+      const user = userEvent.setup();
+      const handleAssignTask = vi.fn();
+      
+      render(<TaskMarkersLayer tasks={mockTasks} onAssignTask={handleAssignTask} />);
+      
+      const assignButton = screen.getAllByText('Assign')[0];
+      await user.click(assignButton);
+      
+      expect(handleAssignTask).toHaveBeenCalledWith(mockTasks[0]);
+    });
+
+    it('passes onViewDetails handler to markers', async () => {
+      const user = userEvent.setup();
+      const handleViewDetails = vi.fn();
+      
+      render(<TaskMarkersLayer tasks={mockTasks} onViewDetails={handleViewDetails} />);
+      
+      const detailsButton = screen.getAllByText('Details')[0];
+      await user.click(detailsButton);
+      
+      expect(handleViewDetails).toHaveBeenCalledWith(mockTasks[0]);
     });
   });
 });

@@ -31,6 +31,7 @@ describe('TaskMarker', () => {
     description: 'Task description',
     clientAddress: '123 Main St',
     priority: 'HIGH',
+    estimatedDuration: 60,
     coordinates: {
       lat: 37.7749,
       lng: -122.4194,
@@ -150,6 +151,106 @@ describe('TaskMarker', () => {
       render(<TaskMarker task={lowTask} />);
       
       expect(screen.getByText('Low Priority')).toBeInTheDocument();
+    });
+  });
+
+  describe('New popup features', () => {
+    it('renders estimated duration when provided', () => {
+      render(<TaskMarker task={mockTask} />);
+      
+      expect(screen.getByText('60 min')).toBeInTheDocument();
+    });
+
+    it('does not render duration when not provided', () => {
+      const taskWithoutDuration = { ...mockTask, estimatedDuration: null };
+      render(<TaskMarker task={taskWithoutDuration} />);
+      
+      expect(screen.queryByText(/min$/)).not.toBeInTheDocument();
+    });
+
+    it('renders assign task button', () => {
+      render(<TaskMarker task={mockTask} />);
+      
+      expect(screen.getByRole('button', { name: 'Assign Task' })).toBeInTheDocument();
+    });
+
+    it('renders view details button', () => {
+      render(<TaskMarker task={mockTask} />);
+      
+      expect(screen.getByRole('button', { name: 'View Details' })).toBeInTheDocument();
+    });
+
+    it('calls onAssignTask when assign button is clicked', async () => {
+      const user = userEvent.setup();
+      const handleAssign = vi.fn();
+      
+      render(<TaskMarker task={mockTask} onAssignTask={handleAssign} />);
+      
+      const assignButton = screen.getByRole('button', { name: 'Assign Task' });
+      await user.click(assignButton);
+      
+      expect(handleAssign).toHaveBeenCalledWith(mockTask);
+    });
+
+    it('calls onViewDetails when view details button is clicked', async () => {
+      const user = userEvent.setup();
+      const handleViewDetails = vi.fn();
+      
+      render(<TaskMarker task={mockTask} onViewDetails={handleViewDetails} />);
+      
+      const detailsButton = screen.getByRole('button', { name: 'View Details' });
+      await user.click(detailsButton);
+      
+      expect(handleViewDetails).toHaveBeenCalledWith(mockTask);
+    });
+
+    it('does not throw when assign button clicked without handler', async () => {
+      const user = userEvent.setup();
+      
+      render(<TaskMarker task={mockTask} />);
+      
+      const assignButton = screen.getByRole('button', { name: 'Assign Task' });
+      await expect(user.click(assignButton)).resolves.not.toThrow();
+    });
+
+    it('does not throw when view details button clicked without handler', async () => {
+      const user = userEvent.setup();
+      
+      render(<TaskMarker task={mockTask} />);
+      
+      const detailsButton = screen.getByRole('button', { name: 'View Details' });
+      await expect(user.click(detailsButton)).resolves.not.toThrow();
+    });
+
+    it('truncates long descriptions', () => {
+      const longDescription = 'A'.repeat(150);
+      const taskWithLongDesc = { ...mockTask, description: longDescription };
+      
+      render(<TaskMarker task={taskWithLongDesc} />);
+      
+      const descElement = screen.getByText(/A+\.\.\./);
+      expect(descElement).toBeInTheDocument();
+      expect(descElement.textContent.length).toBeLessThanOrEqual(104); // 100 chars + '...'
+      expect(descElement.textContent).toContain('...');
+    });
+
+    it('does not truncate short descriptions', () => {
+      const shortDescription = 'Short description';
+      const taskWithShortDesc = { ...mockTask, description: shortDescription };
+      
+      render(<TaskMarker task={taskWithShortDesc} />);
+      
+      expect(screen.getByText('Short description')).toBeInTheDocument();
+    });
+
+    it('shows full description in title attribute', () => {
+      const description = 'Full task description for tooltip';
+      const taskWithDesc = { ...mockTask, description };
+      
+      render(<TaskMarker task={taskWithDesc} />);
+      
+      const descElement = screen.getByText(description);
+      expect(descElement).toHaveAttribute('title', description);
     });
   });
 });
