@@ -13,6 +13,7 @@ import com.fsm.task.application.dto.TaskResponse;
 import com.fsm.task.application.dto.TechnicianTaskListResponse;
 import com.fsm.task.application.dto.TechnicianTaskResponse;
 import com.fsm.task.application.dto.UpdateTaskStatusRequest;
+import com.fsm.task.application.client.NotificationClient;
 import com.fsm.task.application.exception.InvalidAssignmentException;
 import com.fsm.task.application.exception.InvalidStatusTransitionException;
 import com.fsm.task.application.exception.TaskNotFoundException;
@@ -57,6 +58,7 @@ public class TaskService {
     private final AssignmentRepository assignmentRepository;
     private final AssignmentHistoryRepository assignmentHistoryRepository;
     private final TechnicianValidationService technicianValidationService;
+    private final NotificationClient notificationClient;
     
     /**
      * Creates a new service task.
@@ -215,6 +217,30 @@ public class TaskService {
         // Calculate technician workload
         int workload = assignmentRepository.getTechnicianWorkload(technicianId);
         log.info("Technician {} current workload: {} active assignments", technicianId, workload);
+        
+        // Send notification to technician (failed notifications are logged but don't block assignment)
+        try {
+            // For now, use a placeholder device token - in production, this would be fetched from identity-svc
+            String deviceToken = "technician_" + technicianId + "_device_token";
+            boolean notificationSent = notificationClient.sendTaskAssignmentNotification(
+                    technicianId,
+                    deviceToken,
+                    taskId,
+                    task.getTitle(),
+                    task.getPriority().name(),
+                    task.getClientAddress()
+            );
+            
+            if (notificationSent) {
+                log.info("Task assignment notification sent to technician {}", technicianId);
+            } else {
+                log.warn("Task assignment notification failed for technician {}, but assignment completed", technicianId);
+            }
+        } catch (Exception e) {
+            // Catch any unexpected errors to ensure assignment isn't rolled back
+            log.error("Unexpected error sending notification to technician {}: {}. Assignment completed successfully.", 
+                    technicianId, e.getMessage());
+        }
         
         return AssignTaskResponse.fromAssignment(savedAssignment, task, workload, assignedBy);
     }
