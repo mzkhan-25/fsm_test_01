@@ -1,5 +1,6 @@
 package com.fsm.task.application.client;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpEntity;
@@ -27,6 +28,7 @@ public class NotificationClient {
     private final RestTemplate restTemplate;
     private final String notificationServiceUrl;
     private final boolean notificationEnabled;
+    private final ObjectMapper objectMapper;
     
     /**
      * Creates a NotificationClient with configurable behavior.
@@ -34,14 +36,17 @@ public class NotificationClient {
      * @param restTemplate the RestTemplate for HTTP calls
      * @param notificationServiceUrl the URL of the notification-svc
      * @param notificationEnabled whether to enable notification sending
+     * @param objectMapper Jackson ObjectMapper for JSON serialization
      */
     public NotificationClient(
             RestTemplate restTemplate,
             @Value("${notification.service.url:http://localhost:8083}") String notificationServiceUrl,
-            @Value("${notification.service.enabled:true}") boolean notificationEnabled) {
+            @Value("${notification.service.enabled:true}") boolean notificationEnabled,
+            ObjectMapper objectMapper) {
         this.restTemplate = restTemplate;
         this.notificationServiceUrl = notificationServiceUrl;
         this.notificationEnabled = notificationEnabled;
+        this.objectMapper = objectMapper;
     }
     
     /**
@@ -78,14 +83,13 @@ public class NotificationClient {
             String message = String.format("Task: %s\nPriority: %s\nLocation: %s", 
                     taskTitle, priority, clientAddress);
             
-            // Build data payload for deep linking
-            Map<String, String> dataPayload = new HashMap<>();
-            dataPayload.put("taskId", String.valueOf(taskId));
+            // Build data payload for deep linking using ObjectMapper to prevent JSON injection
+            Map<String, Object> dataPayload = new HashMap<>();
+            dataPayload.put("taskId", taskId);
             dataPayload.put("taskTitle", taskTitle);
             dataPayload.put("priority", priority);
             dataPayload.put("clientAddress", clientAddress);
-            String data = String.format("{\"taskId\":%d,\"taskTitle\":\"%s\",\"priority\":\"%s\",\"clientAddress\":\"%s\"}", 
-                    taskId, taskTitle, priority, clientAddress);
+            String data = objectMapper.writeValueAsString(dataPayload);
             
             // Build request
             Map<String, Object> requestBody = new HashMap<>();

@@ -1,5 +1,6 @@
 package com.fsm.task.application.client;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,11 +31,14 @@ class NotificationClientTest {
     
     private NotificationClient notificationClient;
     
+    private ObjectMapper objectMapper;
+    
     private static final String NOTIFICATION_SERVICE_URL = "http://localhost:8083";
     
     @BeforeEach
     void setUp() {
-        notificationClient = new NotificationClient(restTemplate, NOTIFICATION_SERVICE_URL, true);
+        objectMapper = new ObjectMapper();
+        notificationClient = new NotificationClient(restTemplate, NOTIFICATION_SERVICE_URL, true, objectMapper);
     }
     
     @Test
@@ -153,7 +157,7 @@ class NotificationClientTest {
     @Test
     void testSendTaskAssignmentNotification_DisabledNotifications() {
         // Given - Create client with notifications disabled
-        NotificationClient disabledClient = new NotificationClient(restTemplate, NOTIFICATION_SERVICE_URL, false);
+        NotificationClient disabledClient = new NotificationClient(restTemplate, NOTIFICATION_SERVICE_URL, false, objectMapper);
         
         // When
         boolean result = disabledClient.sendTaskAssignmentNotification(

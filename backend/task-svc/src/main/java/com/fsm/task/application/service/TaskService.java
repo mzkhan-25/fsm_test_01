@@ -220,7 +220,8 @@ public class TaskService {
         
         // Send notification to technician (failed notifications are logged but don't block assignment)
         try {
-            // For now, use a placeholder device token - in production, this would be fetched from identity-svc
+            // PRODUCTION NOTE: Device token should be retrieved from identity-svc or user preferences service
+            // For now, use a placeholder device token pattern for development/testing
             String deviceToken = "technician_" + technicianId + "_device_token";
             boolean notificationSent = notificationClient.sendTaskAssignmentNotification(
                     technicianId,
