@@ -377,7 +377,7 @@ class NotificationRepositoryTest {
             .title("Recent")
             .message("Recent message")
             .read(false)
-            .sentAt(now.minusDays(10))
+            .createdAt(now.minusDays(10))
             .build();
         
         // Create notification from 40 days ago (outside 30 days)
@@ -387,7 +387,7 @@ class NotificationRepositoryTest {
             .title("Old")
             .message("Old message")
             .read(false)
-            .sentAt(now.minusDays(40))
+            .createdAt(now.minusDays(40))
             .build();
         
         // Create notification for different user
@@ -397,7 +397,7 @@ class NotificationRepositoryTest {
             .title("Other User")
             .message("Other user message")
             .read(false)
-            .sentAt(now.minusDays(5))
+            .createdAt(now.minusDays(5))
             .build();
         
         notificationRepository.save(recentNotification);
@@ -414,7 +414,7 @@ class NotificationRepositoryTest {
     }
     
     @Test
-    void testFindRecentByUserIdOrdersBySentAtDesc() {
+    void testFindRecentByUserIdOrdersByCreatedAtDesc() {
         LocalDateTime now = LocalDateTime.now();
         
         Notification older = Notification.builder()
@@ -423,7 +423,7 @@ class NotificationRepositoryTest {
             .title("Older")
             .message("Older message")
             .read(false)
-            .sentAt(now.minusDays(20))
+            .createdAt(now.minusDays(20))
             .build();
         
         Notification newer = Notification.builder()
@@ -432,7 +432,7 @@ class NotificationRepositoryTest {
             .title("Newer")
             .message("Newer message")
             .read(false)
-            .sentAt(now.minusDays(5))
+            .createdAt(now.minusDays(5))
             .build();
         
         notificationRepository.save(older);
@@ -457,7 +457,7 @@ class NotificationRepositoryTest {
             .title("Old")
             .message("Old message")
             .read(false)
-            .sentAt(now.minusDays(40))
+            .createdAt(now.minusDays(40))
             .build();
         
         notificationRepository.save(oldNotification);
@@ -479,7 +479,7 @@ class NotificationRepositoryTest {
             .title("Recent")
             .message("Recent message")
             .read(false)
-            .sentAt(now.minusDays(15))
+            .createdAt(now.minusDays(15))
             .build();
         
         // Create notification outside 30 days
@@ -489,7 +489,7 @@ class NotificationRepositoryTest {
             .title("Old")
             .message("Old message")
             .read(false)
-            .sentAt(now.minusDays(45))
+            .createdAt(now.minusDays(45))
             .build();
         
         notificationRepository.save(recentNotification);
