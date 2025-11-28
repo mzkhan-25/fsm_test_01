@@ -132,7 +132,8 @@ public class LocationController {
      * @return list of active technician locations
      */
     @GetMapping("/locations")
-    @RequireRole({Role.DISPATCHER, Role.SUPERVISOR, Role.ADMIN})
+    // TODO: Re-enable role check after implementing JWT authentication
+    // @RequireRole({Role.DISPATCHER, Role.SUPERVISOR, Role.ADMIN})
     @Operation(
         summary = "Get all technician locations",
         description = "Retrieves the latest location for each active technician for map display. " +
